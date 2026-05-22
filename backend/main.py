@@ -3,7 +3,6 @@ import os
 import numpy as np
 import pdfplumber
 from dotenv import load_dotenv
-import requests
 from config import WEIGHTS
 from extractor import skill_gap
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -11,44 +10,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from llm_feedback import generate_resume_feedback
 from sections import extract_sections
+from sentence_transformers import SentenceTransformer
 
 load_dotenv()
 
 app = FastAPI(title="Resume API")
 
-
-def get_embedding(text: str) -> np.ndarray:
-    """Gets embeddings via Gemini API to save local RAM."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not set")
-    
-    # Using the same model family already configured
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key={api_key}"
-    
-    payload = {
-        "model": "models/embedding-001",
-        "content": {"parts": [{"text": text or " "}]}
-    }
-    
-    try:
-        res = requests.post(url, json=payload, timeout=10)
-        res.raise_for_status()
-        return np.array(res.json()["embedding"]["values"], dtype=np.float32)
-    except Exception as e:
-        print(f"Embedding error: {e}")
-        # Return a zero vector as fallback if API fails
-        return np.zeros(768, dtype=np.float32)
+_model: SentenceTransformer | None = None
 
 
-@app.on_event("startup")
-def startup_event():
-    print("Backend started in API-only mode (Low RAM).")
+def get_model() -> SentenceTransformer:
+    global _model
+    if _model is None:
+        _model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _model
 
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -115,25 +95,20 @@ def score_resume(body: ScoreRequest):
     if not body.jd_text.strip():
         raise HTTPException(status_code=400, detail="jd_text is empty")
 
-    # ── Build batch of texts to embed ─────────────────────────────────────────
+    model = get_model()
+
+    # ── Build batch of texts to embed in one shot ─────────────────────────────
+    texts = [body.resume_text, body.jd_text]
     labels = ["resume", "jd"]
+
     detected = extract_sections(body.resume_text)
     for section_key in ("skills", "experience"):
         if section_key in detected:
+            texts.append(detected[section_key])
             labels.append(f"section_{section_key}")
 
-    # Map labels to their respective texts for easier processing
-    text_map = {
-        "resume": body.resume_text,
-        "jd": body.jd_text,
-        "section_skills": detected.get("skills", ""),
-        "section_experience": detected.get("experience", "")
-    }
-
-    # Use Gemini API to get embeddings for each required piece
-    emb = {}
-    for label in labels:
-        emb[label] = get_embedding(text_map[label])
+    embeddings = model.encode(texts, normalize_embeddings=True)
+    emb = dict(zip(labels, embeddings))
 
     # ── Semantic similarity (full resume vs JD) ───────────────────────────────
     semantic_score = _clamp(_cosine(emb["resume"], emb["jd"]))

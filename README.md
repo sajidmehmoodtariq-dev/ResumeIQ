@@ -34,11 +34,4 @@ This project is decoupled into two parts:
 ## Deployment
 
 - **Frontend:** You can deploy the `frontend` directory to Vercel (using the included `vercel.json`).
-- **Backend:** You can deploy the `backend` directory to Render, Heroku, or Railway. 
-
-  **Crucial Render Settings:**
-  - **Build Command:** `pip install -r requirements.txt`
-  - **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-  - **Environment Variables:** Add `PYTHON_VERSION=3.11.9`, `LLM_PROVIDER=gemini`, and your `GEMINI_API_KEY`.
-
-Be aware that Serverless environments like Vercel Functions have a hard cap on size (250MB), which PyTorch (used by `sentence-transformers`) exceeds.
+- **Backend:** You can deploy the `backend` directory to Render, Heroku, or Railway. Be aware that Serverless environments like Vercel Functions have a hard cap on size (250MB), which PyTorch (used by `sentence-transformers`) exceeds.
