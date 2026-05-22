@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:match*",
-      "destination": "https://your-production-backend.com/api/:match*"
+      "destination": "https://resumeiq-110u.onrender.com/api/:match*"
     },
     {
       "source": "/(.*)",
