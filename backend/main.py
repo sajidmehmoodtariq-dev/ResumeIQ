@@ -10,27 +10,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from llm_feedback import generate_resume_feedback
 from sections import extract_sections
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
 load_dotenv()
 
 app = FastAPI(title="Resume API")
 
-_model: SentenceTransformer | None = None
+_model: TextEmbedding | None = None
 
 
 @app.on_event("startup")
 def startup_event():
     # Eagerly load model on startup so user requests don't timeout
-    print("Loading AI model...")
+    print("Loading AI model (fastembed)...")
     get_model()
     print("AI model loaded successfully.")
 
 
-def get_model() -> SentenceTransformer:
+def get_model() -> TextEmbedding:
     global _model
     if _model is None:
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
+        # fastembed uses ONNX and is much lighter than sentence-transformers + torch
+        _model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
     return _model
 
 
@@ -115,7 +116,11 @@ def score_resume(body: ScoreRequest):
             texts.append(detected[section_key])
             labels.append(f"section_{section_key}")
 
-    embeddings = model.encode(texts, normalize_embeddings=True)
+    # Use fastembed to generate embeddings (it returns a generator)
+    # TextEmbedding.embed() returns an iterable of numpy arrays
+    embeddings_gen = model.embed(texts)
+    embeddings = list(embeddings_gen)
+    
     emb = dict(zip(labels, embeddings))
 
     # ── Semantic similarity (full resume vs JD) ───────────────────────────────
