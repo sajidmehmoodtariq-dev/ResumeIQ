@@ -19,6 +19,14 @@ app = FastAPI(title="Resume API")
 _model: SentenceTransformer | None = None
 
 
+@app.on_event("startup")
+def startup_event():
+    # Eagerly load model on startup so user requests don't timeout
+    print("Loading AI model...")
+    get_model()
+    print("AI model loaded successfully.")
+
+
 def get_model() -> SentenceTransformer:
     global _model
     if _model is None:
@@ -28,7 +36,7 @@ def get_model() -> SentenceTransformer:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
