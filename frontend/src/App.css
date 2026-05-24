@@ -168,6 +168,10 @@
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
+.compare-text-area {
+  min-height: 130px;
+}
+
 .btn-primary {
   background-color: var(--primary);
   color: white;
@@ -195,6 +199,183 @@
 .btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.compare-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .compare-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 900px) {
+  .compare-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.compare-input-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.compare-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.comparison-results {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.comparison-summary {
+  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.comparison-summary-label {
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #4338ca;
+  margin-bottom: 0.5rem;
+}
+
+.comparison-summary h4 {
+  margin: 0 0 0.35rem 0;
+  font-size: 1.15rem;
+  color: var(--text-main);
+}
+
+.comparison-summary p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.comparison-ranking-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .comparison-ranking-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.comparison-rank-card {
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.comparison-rank-card.rank-1 {
+  border-color: #c7d2fe;
+  background: linear-gradient(180deg, #ffffff 0%, #eef2ff 100%);
+}
+
+.comparison-rank-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.85rem;
+}
+
+.comparison-rank-top h4 {
+  margin: 0.35rem 0 0 0;
+  font-size: 1rem;
+  color: var(--text-main);
+}
+
+.comparison-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #111827;
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.comparison-score-pill {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.comparison-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 0.85rem;
+}
+
+.comparison-metrics span {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+}
+
+.comparison-lists {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.comparison-lists strong {
+  display: block;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.35rem;
+  color: var(--text-main);
+}
+
+.comparison-lists p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-muted);
 }
 
 .error-msg {

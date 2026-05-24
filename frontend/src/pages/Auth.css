@@ -1,0 +1,303 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Outfit:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+/* ── Tokens ─────────────────────────────────────────────────────── */
+.auth-root {
+  --bg:         #07080e;
+  --surface:    #0f1119;
+  --surface-hi: #181c28;
+  --border:     rgba(255,255,255,0.08);
+  --accent:     #b8ff3d;
+  --indigo:     #6461f5;
+  --text:       #e8eaf2;
+  --muted:      #6b7280;
+  --error:      #f87171;
+
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  font-family: 'Outfit', sans-serif;
+  color: var(--text);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Background decoration ─────────────────────────────────────── */
+.auth-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.auth-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.18;
+}
+
+.auth-blob-1 {
+  width: 480px;
+  height: 480px;
+  background: var(--accent);
+  top: -160px;
+  right: -120px;
+}
+
+.auth-blob-2 {
+  width: 360px;
+  height: 360px;
+  background: var(--indigo);
+  bottom: -100px;
+  left: -100px;
+}
+
+.auth-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* ── Card ───────────────────────────────────────────────────────── */
+.auth-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 480px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.02), transparent 28%),
+    var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2.5rem 2rem;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(184,255,61,0.04);
+  animation: auth-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes auth-card-in {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Logo link ──────────────────────────────────────────────────── */
+.auth-logo {
+  display: block;
+  text-align: center;
+  font-family: 'Fraunces', serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  margin-bottom: 2rem;
+  letter-spacing: -0.01em;
+}
+
+.auth-logo em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+/* ── Heading ────────────────────────────────────────────────────── */
+.auth-title {
+  font-family: 'Fraunces', serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 0.35rem;
+  letter-spacing: -0.02em;
+}
+
+.auth-sub {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: 0 0 2rem;
+  line-height: 1.5;
+}
+
+.auth-sub a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.auth-sub a:hover { text-decoration: underline; }
+
+/* ── Form ───────────────────────────────────────────────────────── */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.auth-google-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.auth-google-button {
+  min-height: 44px;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-google-error {
+  font-size: 0.82rem;
+  color: var(--error);
+  line-height: 1.5;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.auth-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: 'DM Mono', monospace;
+}
+
+.auth-input {
+  width: 100%;
+  background: var(--surface-hi);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  font-family: 'Outfit', sans-serif;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.auth-input:hover {
+  border-color: rgba(255,255,255,0.14);
+}
+
+.auth-input::placeholder { color: var(--muted); opacity: 0.6; }
+
+.auth-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(184,255,61,0.12);
+}
+
+/* ── Submit ─────────────────────────────────────────────────────── */
+.auth-submit {
+  margin-top: 0.4rem;
+  padding: 0.8rem 1.5rem;
+  background: var(--accent);
+  color: #07080e;
+  border: none;
+  border-radius: 10px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.auth-submit:hover:not(:disabled) {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.auth-submit:focus-visible,
+.auth-input:focus-visible,
+.auth-logo:focus-visible,
+.auth-sub a:focus-visible,
+.auth-footer-note a:focus-visible,
+.auth-forgot:focus-visible {
+  outline: 2px solid rgba(184,255,61,0.75);
+  outline-offset: 2px;
+}
+
+.auth-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Divider ────────────────────────────────────────────────────── */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.25rem 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Error ──────────────────────────────────────────────────────── */
+.auth-error {
+  background: rgba(248,113,113,0.1);
+  border: 1px solid rgba(248,113,113,0.25);
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.85rem;
+  color: var(--error);
+}
+
+/* ── Footer note ────────────────────────────────────────────────── */
+.auth-footer-note {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.auth-footer-note a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.auth-footer-note a:hover { text-decoration: underline; }
+
+/* ── Password row ───────────────────────────────────────────────── */
+.auth-field-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.auth-forgot {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.auth-forgot:hover { color: var(--accent); }
+
+/* ── Name row (signup) ──────────────────────────────────────────── */
+.auth-name-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (max-width: 420px) {
+  .auth-card { padding: 2rem 1.25rem; }
+  .auth-name-row { grid-template-columns: 1fr; }
+}

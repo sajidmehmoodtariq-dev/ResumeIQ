@@ -3,7 +3,9 @@ import os
 import numpy as np
 import pdfplumber
 from dotenv import load_dotenv
+from auth import router as auth_router
 from config import WEIGHTS
+from db import ensure_indexes
 from extractor import skill_gap
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,21 +19,27 @@ load_dotenv()
 app = FastAPI(title="Resume API")
 
 _model: TextEmbedding | None = None
+_FASTEMBED_CACHE_DIR = os.path.join(os.path.dirname(__file__), ".fastembed_cache")
 
 
 @app.on_event("startup")
 def startup_event():
-    # Eagerly load model on startup so user requests don't timeout
-    print("Loading AI model (fastembed)...")
-    get_model()
-    print("AI model loaded successfully.")
+    # Keep startup lightweight; the model loads on first scoring request.
+    ensure_indexes()
+    print("Resume API started; fastembed will load lazily on demand.")
+
+
+app.include_router(auth_router, prefix="/api")
 
 
 def get_model() -> TextEmbedding:
     global _model
     if _model is None:
         # fastembed uses ONNX and is much lighter than sentence-transformers + torch
-        _model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        _model = TextEmbedding(
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            cache_dir=_FASTEMBED_CACHE_DIR,
+        )
     return _model
 
 
@@ -61,6 +69,53 @@ def _cosine(a: np.ndarray, b: np.ndarray) -> float:
 
 def _clamp(v: float) -> float:
     return round(max(0.0, min(1.0, v)) * 100, 1)
+
+
+def _score_resume_against_jd(*, resume_text: str, jd_text: str) -> dict[str, object]:
+    model = get_model()
+
+    texts = [resume_text, jd_text]
+    labels = ["resume", "jd"]
+
+    detected = extract_sections(resume_text)
+    for section_key in ("skills", "experience"):
+        if section_key in detected:
+            texts.append(detected[section_key])
+            labels.append(f"section_{section_key}")
+
+    embeddings = list(model.embed(texts))
+    emb = dict(zip(labels, embeddings))
+
+    semantic_score = _clamp(_cosine(emb["resume"], emb["jd"]))
+
+    gaps = skill_gap(resume_text, jd_text)
+    jd_skill_count = len(gaps["matched_skills"]) + len(gaps["missing_skills"])
+    if jd_skill_count > 0:
+        skill_coverage = round(len(gaps["matched_skills"]) / jd_skill_count * 100, 1)
+    else:
+        skill_coverage = 100.0
+
+    score = round(
+        semantic_score * WEIGHTS["semantic"]
+        + skill_coverage * WEIGHTS["skill_coverage"],
+        1,
+    )
+
+    section_scores = {}
+    for section_key in ("skills", "experience"):
+        label = f"section_{section_key}"
+        if label in emb:
+            section_scores[section_key] = _clamp(_cosine(emb[label], emb["jd"]))
+        else:
+            section_scores[section_key] = None
+
+    return {
+        "score": score,
+        "semantic_score": semantic_score,
+        "skill_coverage": skill_coverage,
+        "section_scores": section_scores,
+        **gaps,
+    }
 
 
 @app.post("/api/resume/upload")
@@ -97,6 +152,16 @@ class FeedbackRequest(BaseModel):
     skill_gap: SkillGapRequest
 
 
+class CompareJobRequest(BaseModel):
+    label: str | None = None
+    jd_text: str
+
+
+class CompareRequest(BaseModel):
+    resume_text: str
+    job_descriptions: list[CompareJobRequest]
+
+
 @app.post("/api/score")
 def score_resume(body: ScoreRequest):
     if not body.resume_text.strip():
@@ -104,58 +169,39 @@ def score_resume(body: ScoreRequest):
     if not body.jd_text.strip():
         raise HTTPException(status_code=400, detail="jd_text is empty")
 
-    model = get_model()
+    return _score_resume_against_jd(resume_text=body.resume_text, jd_text=body.jd_text)
 
-    # ── Build batch of texts to embed in one shot ─────────────────────────────
-    texts = [body.resume_text, body.jd_text]
-    labels = ["resume", "jd"]
 
-    detected = extract_sections(body.resume_text)
-    for section_key in ("skills", "experience"):
-        if section_key in detected:
-            texts.append(detected[section_key])
-            labels.append(f"section_{section_key}")
+@app.post("/api/compare-jobs")
+def compare_jobs(body: CompareRequest):
+    if not body.resume_text.strip():
+        raise HTTPException(status_code=400, detail="resume_text is empty")
+    if not body.job_descriptions:
+        raise HTTPException(status_code=400, detail="job_descriptions is empty")
+    if len(body.job_descriptions) > 3:
+        raise HTTPException(status_code=400, detail="Provide at most 3 job descriptions")
 
-    # Use fastembed to generate embeddings (it returns a generator)
-    # TextEmbedding.embed() returns an iterable of numpy arrays
-    embeddings_gen = model.embed(texts)
-    embeddings = list(embeddings_gen)
-    
-    emb = dict(zip(labels, embeddings))
+    ranked_jobs = []
+    for index, job in enumerate(body.job_descriptions, start=1):
+        if not job.jd_text.strip():
+            raise HTTPException(status_code=400, detail=f"job_descriptions[{index - 1}].jd_text is empty")
 
-    # ── Semantic similarity (full resume vs JD) ───────────────────────────────
-    semantic_score = _clamp(_cosine(emb["resume"], emb["jd"]))
+        result = _score_resume_against_jd(resume_text=body.resume_text, jd_text=job.jd_text)
+        ranked_jobs.append(
+            {
+                "rank": index,
+                "label": job.label or f"Job {index}",
+                **result,
+            }
+        )
 
-    # ── Skill coverage ────────────────────────────────────────────────────────
-    gaps = skill_gap(body.resume_text, body.jd_text)
-    jd_skill_count = len(gaps["matched_skills"]) + len(gaps["missing_skills"])
-    if jd_skill_count > 0:
-        skill_coverage = round(len(gaps["matched_skills"]) / jd_skill_count * 100, 1)
-    else:
-        skill_coverage = 100.0  # no detectable skills in JD — don't penalise
-
-    # ── Weighted composite ────────────────────────────────────────────────────
-    score = round(
-        semantic_score * WEIGHTS["semantic"]
-        + skill_coverage * WEIGHTS["skill_coverage"],
-        1,
-    )
-
-    # ── Section scores ────────────────────────────────────────────────────────
-    section_scores = {}
-    for section_key in ("skills", "experience"):
-        label = f"section_{section_key}"
-        if label in emb:
-            section_scores[section_key] = _clamp(_cosine(emb[label], emb["jd"]))
-        else:
-            section_scores[section_key] = None
+    ranked_jobs.sort(key=lambda item: item["score"], reverse=True)
+    for rank, item in enumerate(ranked_jobs, start=1):
+        item["rank"] = rank
 
     return {
-        "score":          score,
-        "semantic_score": semantic_score,
-        "skill_coverage": skill_coverage,
-        "section_scores": section_scores,
-        **gaps,
+        "ranked_jobs": ranked_jobs,
+        "best_match": ranked_jobs[0] if ranked_jobs else None,
     }
 
 

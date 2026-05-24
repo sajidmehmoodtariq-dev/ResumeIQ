@@ -12,11 +12,15 @@ function App() {
   const [jdText, setJdText] = useState('');
   const [result, setResult] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const [compareJds, setCompareJds] = useState(['', '', '']);
+  const [compareResult, setCompareResult] = useState(null);
 
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState(null);
 
   useEffect(() => {
     fetch('/api/health')
@@ -87,6 +91,45 @@ function App() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleCompareJobs(e) {
+    e.preventDefault();
+    setCompareError(null);
+    setCompareResult(null);
+
+    const cleanedJds = compareJds.map((jd) => jd.trim());
+    if (cleanedJds.some((jd) => !jd)) {
+      setCompareError('Paste all three job descriptions first');
+      return;
+    }
+
+    if (!resumeText) {
+      setCompareError('Process your resume first');
+      return;
+    }
+
+    setCompareLoading(true);
+    try {
+      const res = await fetch('/api/compare-jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resume_text: resumeText,
+          job_descriptions: cleanedJds.map((jd, index) => ({
+            label: `Role ${index + 1}`,
+            jd_text: jd,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Comparison failed');
+      setCompareResult(data);
+    } catch (err) {
+      setCompareError(err.message);
+    } finally {
+      setCompareLoading(false);
     }
   }
 
@@ -218,6 +261,90 @@ function App() {
         )}
 
         {error && <div className="error-msg">⚠️ {error}</div>}
+
+        {/* ── Multi-JD Comparison ── */}
+        {resumeText && (
+          <section className="card">
+            <div className="compare-header">
+              <div className="feedback-title-group">
+                <h3>Multi-JD Comparison</h3>
+                <p>Paste three job descriptions to see which role your resume matches best.</p>
+              </div>
+              <button
+                type="button"
+                className="feedback-button"
+                onClick={handleCompareJobs}
+                disabled={loading || compareLoading}
+              >
+                {compareLoading ? 'Ranking Roles ✨' : 'Compare 3 JDs'}
+              </button>
+            </div>
+
+            <div className="compare-grid">
+              {compareJds.map((jd, index) => (
+                <div className="compare-input-card" key={index}>
+                  <label className="compare-label" htmlFor={`compare-jd-${index}`}>
+                    Job Description {index + 1}
+                  </label>
+                  <textarea
+                    id={`compare-jd-${index}`}
+                    className="text-area compare-text-area"
+                    placeholder={`Paste job description ${index + 1} here...`}
+                    value={jd}
+                    onChange={(e) => {
+                      const next = [...compareJds];
+                      next[index] = e.target.value;
+                      setCompareJds(next);
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {compareError && <div className="error-msg">⚠️ {compareError}</div>}
+
+            {compareResult?.ranked_jobs?.length > 0 && (
+              <div className="comparison-results">
+                <div className="comparison-summary">
+                  <span className="comparison-summary-label">Best Match</span>
+                  <h4>{compareResult.best_match?.label}</h4>
+                  <p>
+                    Your resume fits this role best with a score of{' '}
+                    <strong>{compareResult.best_match?.score}%</strong>.
+                  </p>
+                </div>
+
+                <div className="comparison-ranking-list">
+                  {compareResult.ranked_jobs.map((job) => (
+                    <article key={`${job.label}-${job.rank}`} className={`comparison-rank-card rank-${job.rank}`}>
+                      <div className="comparison-rank-top">
+                        <div>
+                          <span className="comparison-rank-badge">#{job.rank}</span>
+                          <h4>{job.label}</h4>
+                        </div>
+                        <div className="comparison-score-pill">{job.score}%</div>
+                      </div>
+                      <div className="comparison-metrics">
+                        <span>Semantic {fmt(job.semantic_score)}</span>
+                        <span>Coverage {fmt(job.skill_coverage)}</span>
+                      </div>
+                      <div className="comparison-lists">
+                        <div>
+                          <strong>Matched</strong>
+                          <p>{job.matched_skills?.length ? job.matched_skills.join(', ') : 'None'}</p>
+                        </div>
+                        <div>
+                          <strong>Missing</strong>
+                          <p>{job.missing_skills?.length ? job.missing_skills.join(', ') : 'None'}</p>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* ── Results ── */}
         {result && (
