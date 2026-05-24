@@ -4,6 +4,7 @@ import numpy as np
 import pdfplumber
 from dotenv import load_dotenv
 from auth import router as auth_router
+from profile import router as profile_router
 from config import WEIGHTS
 from db import ensure_indexes
 from extractor import skill_gap
@@ -30,6 +31,7 @@ def startup_event():
 
 
 app.include_router(auth_router, prefix="/api")
+app.include_router(profile_router, prefix="/api")
 
 
 def get_model() -> TextEmbedding:

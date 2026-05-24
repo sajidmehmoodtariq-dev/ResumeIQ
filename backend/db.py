@@ -1,7 +1,7 @@
 from pymongo import MongoClient, errors
 import logging
 
-from config import MONGO_DB_NAME, MONGO_URI, MONGO_USERS_COLLECTION
+from config import MONGO_DB_NAME, MONGO_RESUMES_COLLECTION, MONGO_URI, MONGO_USERS_COLLECTION
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +27,10 @@ except Exception as exc:
 
 database = client[MONGO_DB_NAME]
 users_collection = database[MONGO_USERS_COLLECTION]
+resumes_collection = database[MONGO_RESUMES_COLLECTION]
 
 
 def ensure_indexes() -> None:
     users_collection.create_index("email", unique=True)
     users_collection.create_index("google_sub", unique=True, sparse=True)
+    resumes_collection.create_index([("user_id", 1), ("uploaded_at", -1)])

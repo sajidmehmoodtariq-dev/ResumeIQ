@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import './App.css';
 
@@ -8,11 +8,17 @@ function App() {
   const { user, logout } = useAuth();
   const [health, setHealth] = useState(null);
 
+  const [savedResumes, setSavedResumes] = useState([]);
+  const [savedLoading, setSavedLoading] = useState(false);
+  const [savedError, setSavedError] = useState(null);
+  const [selectedResumeId, setSelectedResumeId] = useState(null);
+
   const [mode, setMode] = useState('upload');
   const [file, setFile] = useState(null);
   const [pasteText, setPasteText] = useState('');
   const [resumeText, setResumeText] = useState(null);
 
+  const [jdMode, setJdMode] = useState('single');
   const [jdText, setJdText] = useState('');
   const [result, setResult] = useState(null);
   const [feedback, setFeedback] = useState(null);
@@ -44,18 +50,10 @@ function App() {
 
     const body = new FormData();
     if (mode === 'upload') {
-      if (!file) {
-        setError('Select a PDF first');
-        setLoading(false);
-        return;
-      }
+      if (!file) { setError('Select a PDF first'); setLoading(false); return; }
       body.append('file', file);
     } else {
-      if (!pasteText.trim()) {
-        setError('Paste some text first');
-        setLoading(false);
-        return;
-      }
+      if (!pasteText.trim()) { setError('Paste some text first'); setLoading(false); return; }
       body.append('text', pasteText);
     }
     try {
@@ -76,11 +74,7 @@ function App() {
     setResult(null);
     setFeedback(null);
     setFeedbackError(null);
-
-    if (!jdText.trim()) {
-      setError('Paste a job description first');
-      return;
-    }
+    if (!jdText.trim()) { setError('Paste a job description first'); return; }
     setLoading(true);
     try {
       const res = await fetch('/api/score', {
@@ -102,18 +96,9 @@ function App() {
     e.preventDefault();
     setCompareError(null);
     setCompareResult(null);
-
     const cleanedJds = compareJds.map((jd) => jd.trim());
-    if (cleanedJds.some((jd) => !jd)) {
-      setCompareError('Paste all three job descriptions first');
-      return;
-    }
-
-    if (!resumeText) {
-      setCompareError('Process your resume first');
-      return;
-    }
-
+    if (cleanedJds.some((jd) => !jd)) { setCompareError('Paste all three job descriptions first'); return; }
+    if (!resumeText) { setCompareError('Process your resume first'); return; }
     setCompareLoading(true);
     try {
       const res = await fetch('/api/compare-jobs', {
@@ -121,10 +106,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           resume_text: resumeText,
-          job_descriptions: cleanedJds.map((jd, index) => ({
-            label: `Role ${index + 1}`,
-            jd_text: jd,
-          })),
+          job_descriptions: cleanedJds.map((jd, index) => ({ label: `Role ${index + 1}`, jd_text: jd })),
         }),
       });
       const data = await res.json();
@@ -173,328 +155,492 @@ function App() {
     navigate('/');
   }
 
-  return (
-    <div className="layout-container">
-      <header className="app-header">
-        <h1 className="app-title">Resume Matcher</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span className={`status-badge ${health?.status === 'ok' ? 'ok' : 'error'}`}>
-            Backend {health ? 'Online' : 'Offline'}
-          </span>
-          {user && (
-            <>
-              <span style={{ fontSize: '0.85rem', opacity: 0.8 }}>
-                {user.first_name} {user.last_name}
-              </span>
-              <button
-                onClick={handleLogout}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #b8ff3d',
-                  background: 'transparent',
-                  color: '#b8ff3d',
-                  cursor: 'pointer',
-                  fontSize: '0.85rem',
-                  fontWeight: '600',
-                }}
-              >
-                Logout
-              </button>
-            </>
-          )}
-        </div>
-      </header>
+  async function fetchSavedResumes() {
+    setSavedLoading(true);
+    setSavedError(null);
+    try {
+      const res = await fetch('/api/profile/resumes', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to load saved resumes');
+      setSavedResumes(data);
+    } catch (err) {
+      setSavedError(err.message);
+    } finally {
+      setSavedLoading(false);
+    }
+  }
 
-      <main>
-        {/* ── Step 1 ── */}
-        <section className="card">
-          <h2 className="card-title">
-            <span className="step-indicator">1</span>
+  async function handleSelectResume(id) {
+    setSelectedResumeId(id);
+    setResumeText(null);
+    setResult(null);
+    setFeedback(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/profile/resumes/${id}/text`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to load resume');
+      setResumeText(data.text);
+    } catch (err) {
+      setError(err.message);
+      setSelectedResumeId(null);
+    }
+  }
+
+  const step = result ? 3 : resumeText ? 2 : 1;
+  const initials = user
+    ? `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase() || 'U'
+    : 'U';
+
+  return (
+    <div className="ap-root">
+
+      {/* ── NAV ── */}
+      <nav className="ap-nav">
+        <div className="ap-nav-inner">
+          <Link to="/" className="ap-logo">Resume<em>Matcher</em></Link>
+
+          <div className="ap-nav-right">
+            <span
+              className={`ap-health-dot ${health?.status === 'ok' ? 'ap-health-ok' : 'ap-health-err'}`}
+              title={`Backend ${health?.status ?? 'checking…'}`}
+            />
+            <Link to="/profile" className="ap-nav-link">Profile</Link>
+
+            {user && (
+              <div className="ap-user">
+                <div className="ap-avatar">{initials}</div>
+                <span className="ap-username">{user.first_name} {user.last_name}</span>
+              </div>
+            )}
+
+            <button className="ap-signout" onClick={handleLogout}>Sign out</button>
+          </div>
+        </div>
+      </nav>
+
+      {/* ── MAIN ── */}
+      <main className="ap-main">
+
+        {/* Step progress */}
+        <div className="ap-steps">
+          {[
+            { n: 1, label: 'Resume' },
+            { n: 2, label: 'Job Match' },
+            { n: 3, label: 'Results' },
+          ].map(({ n, label }, i, arr) => (
+            <div key={n} className="ap-step-group">
+              <div className={`ap-step-node ${step >= n ? 'ap--done' : ''} ${step === n ? 'ap--active' : ''}`}>
+                <div className="ap-step-dot">
+                  {step > n ? <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg> : <span>{n}</span>}
+                </div>
+                <span className="ap-step-label">{label}</span>
+              </div>
+              {i < arr.length - 1 && <div className={`ap-step-line ${step > n ? 'ap--done' : ''}`} />}
+            </div>
+          ))}
+        </div>
+
+        {/* ── STEP 1: Resume ── */}
+        <section className="ap-card">
+          <h2 className="ap-card-title">
+            <span className="ap-step-badge">01</span>
             Provide Your Resume
           </h2>
-          
-          <div className="tabs">
+
+          <div className="ap-tabs">
             <button
               type="button"
-              className={`tab-btn ${mode === 'upload' ? 'active' : ''}`}
-              onClick={() => {
-                setMode('upload');
-                setResumeText(null);
-                setResult(null);
-                setError(null);
-              }}
+              className={`ap-tab ${mode === 'upload' ? 'ap--active' : ''}`}
+              onClick={() => { setMode('upload'); setResumeText(null); setResult(null); setError(null); setSelectedResumeId(null); }}
             >
               Upload PDF
             </button>
             <button
               type="button"
-              className={`tab-btn ${mode === 'paste' ? 'active' : ''}`}
-              onClick={() => {
-                setMode('paste');
-                setResumeText(null);
-                setResult(null);
-                setError(null);
-              }}
+              className={`ap-tab ${mode === 'paste' ? 'ap--active' : ''}`}
+              onClick={() => { setMode('paste'); setResumeText(null); setResult(null); setError(null); setSelectedResumeId(null); }}
             >
               Paste Text
             </button>
+            <button
+              type="button"
+              className={`ap-tab ${mode === 'select' ? 'ap--active' : ''}`}
+              onClick={() => { setMode('select'); setResumeText(null); setResult(null); setError(null); setSelectedResumeId(null); fetchSavedResumes(); }}
+            >
+              Select from Profile
+            </button>
           </div>
 
-          <form onSubmit={handleResumeSubmit}>
-            {mode === 'upload' ? (
-              <div className="file-input-wrapper">
-                <input
-                  className="file-input"
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) => setFile(e.target.files[0] ?? null)}
+          {(mode === 'upload' || mode === 'paste') && (
+            <form onSubmit={handleResumeSubmit}>
+              {mode === 'upload' ? (
+                <div className="ap-dropzone">
+                  <input
+                    className="ap-file-input"
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) => setFile(e.target.files[0] ?? null)}
+                    id="pdf-upload"
+                  />
+                  <label htmlFor="pdf-upload" className="ap-dropzone-label">
+                    <span className="ap-dropzone-icon">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="12" y1="18" x2="12" y2="12"/>
+                        <line x1="9" y1="15" x2="15" y2="15"/>
+                      </svg>
+                    </span>
+                    <span className="ap-dropzone-main">
+                      {file ? file.name : 'Drop PDF here or click to browse'}
+                    </span>
+                    <span className="ap-dropzone-hint">PDF files only · max 10 MB</span>
+                  </label>
+                </div>
+              ) : (
+                <textarea
+                  className="ap-textarea"
+                  placeholder="Paste your resume text here…"
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
                 />
-              </div>
-            ) : (
-              <textarea
-                className="text-area"
-                placeholder="Paste your resume text here..."
-                value={pasteText}
-                onChange={(e) => setPasteText(e.target.value)}
-              />
-            )}
-            
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading && !resumeText ? 'Extracting Text...' : 'Process Resume'}
-            </button>
-          </form>
+              )}
+              <button type="submit" className="ap-btn" disabled={loading}>
+                {loading && !resumeText
+                  ? <><span className="ap-spinner" /> Extracting…</>
+                  : 'Process Resume →'}
+              </button>
+            </form>
+          )}
+
+          {mode === 'select' && (
+            <div className="ap-saved-list">
+              {savedLoading && (
+                <div className="ap-saved-loading">
+                  <span className="ap-spinner ap-spinner--dark" /> Loading saved resumes…
+                </div>
+              )}
+              {savedError && (
+                <div className="ap-error">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="5" x2="8" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="8" cy="11.5" r="0.75" fill="currentColor"/></svg>
+                  {savedError}
+                </div>
+              )}
+              {!savedLoading && !savedError && savedResumes.length === 0 && (
+                <div className="ap-saved-empty">
+                  No resumes saved yet.{' '}
+                  <Link to="/profile" className="ap-saved-link">Go to Profile →</Link>
+                </div>
+              )}
+              {!savedLoading && savedResumes.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  className={`ap-saved-card ${selectedResumeId === r.id ? 'ap-saved-card--active' : ''}`}
+                  onClick={() => handleSelectResume(r.id)}
+                  disabled={loading}
+                >
+                  <div className="ap-saved-card-left">
+                    <span className={`ap-saved-source ap-saved-source--${r.source}`}>
+                      {r.source === 'pdf' ? 'PDF' : 'Text'}
+                    </span>
+                    <div className="ap-saved-card-info">
+                      <span className="ap-saved-name">{r.label}</span>
+                      <span className="ap-saved-date">
+                        {new Date(r.uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
+                  </div>
+                  {selectedResumeId === r.id && loading
+                    ? <span className="ap-spinner ap-spinner--dark" />
+                    : selectedResumeId === r.id && resumeText
+                      ? <span className="ap-saved-check">✓ Selected</span>
+                      : <span className="ap-saved-use">Use this →</span>
+                  }
+                </button>
+              ))}
+            </div>
+          )}
 
           {resumeText && (
-            <div className="extracted-text-preview">
-              {resumeText}
+            <div className="ap-preview">
+              <div className="ap-preview-hd">
+                <span className="ap-preview-tag">Extracted Text</span>
+                <span className="ap-preview-ok">✓ Ready</span>
+              </div>
+              <pre className="ap-preview-body">{resumeText}</pre>
             </div>
           )}
         </section>
 
-        {/* ── Step 2 ── */}
+        {/* ── STEP 2: JD (single or compare) ── */}
         {resumeText && (
-          <section className="card">
-            <h2 className="card-title">
-              <span className="step-indicator">2</span>
-              Target Job Description
+          <section className="ap-card ap-card--enter">
+            <h2 className="ap-card-title">
+              <span className="ap-step-badge">02</span>
+              Job Description
             </h2>
-            <form onSubmit={handleScore}>
-              <textarea
-                className="text-area"
-                placeholder="Paste the job description here to compare..."
-                value={jdText}
-                onChange={(e) => setJdText(e.target.value)}
-              />
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading && resumeText && !result ? 'Calculating Match...' : 'Analyze Match'}
-              </button>
-            </form>
-          </section>
-        )}
 
-        {error && <div className="error-msg">⚠️ {error}</div>}
-
-        {/* ── Multi-JD Comparison ── */}
-        {resumeText && (
-          <section className="card">
-            <div className="compare-header">
-              <div className="feedback-title-group">
-                <h3>Multi-JD Comparison</h3>
-                <p>Paste three job descriptions to see which role your resume matches best.</p>
-              </div>
+            <div className="ap-tabs">
               <button
                 type="button"
-                className="feedback-button"
-                onClick={handleCompareJobs}
-                disabled={loading || compareLoading}
+                className={`ap-tab ${jdMode === 'single' ? 'ap--active' : ''}`}
+                onClick={() => { setJdMode('single'); setError(null); setResult(null); setFeedback(null); }}
               >
-                {compareLoading ? 'Ranking Roles ✨' : 'Compare 3 JDs'}
+                Analyze Single JD
+              </button>
+              <button
+                type="button"
+                className={`ap-tab ${jdMode === 'compare' ? 'ap--active' : ''}`}
+                onClick={() => { setJdMode('compare'); setCompareError(null); setCompareResult(null); }}
+              >
+                Compare 3 JDs
               </button>
             </div>
 
-            <div className="compare-grid">
-              {compareJds.map((jd, index) => (
-                <div className="compare-input-card" key={index}>
-                  <label className="compare-label" htmlFor={`compare-jd-${index}`}>
-                    Job Description {index + 1}
-                  </label>
-                  <textarea
-                    id={`compare-jd-${index}`}
-                    className="text-area compare-text-area"
-                    placeholder={`Paste job description ${index + 1} here...`}
-                    value={jd}
-                    onChange={(e) => {
-                      const next = [...compareJds];
-                      next[index] = e.target.value;
-                      setCompareJds(next);
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
+            {jdMode === 'single' && (
+              <form onSubmit={handleScore}>
+                <textarea
+                  className="ap-textarea"
+                  placeholder="Paste the job description here to compare…"
+                  value={jdText}
+                  onChange={(e) => setJdText(e.target.value)}
+                />
+                <button type="submit" className="ap-btn" disabled={loading}>
+                  {loading && resumeText && !result
+                    ? <><span className="ap-spinner" /> Analyzing…</>
+                    : 'Analyze Match →'}
+                </button>
+              </form>
+            )}
 
-            {compareError && <div className="error-msg">⚠️ {compareError}</div>}
-
-            {compareResult?.ranked_jobs?.length > 0 && (
-              <div className="comparison-results">
-                <div className="comparison-summary">
-                  <span className="comparison-summary-label">Best Match</span>
-                  <h4>{compareResult.best_match?.label}</h4>
-                  <p>
-                    Your resume fits this role best with a score of{' '}
-                    <strong>{compareResult.best_match?.score}%</strong>.
-                  </p>
-                </div>
-
-                <div className="comparison-ranking-list">
-                  {compareResult.ranked_jobs.map((job) => (
-                    <article key={`${job.label}-${job.rank}`} className={`comparison-rank-card rank-${job.rank}`}>
-                      <div className="comparison-rank-top">
-                        <div>
-                          <span className="comparison-rank-badge">#{job.rank}</span>
-                          <h4>{job.label}</h4>
-                        </div>
-                        <div className="comparison-score-pill">{job.score}%</div>
-                      </div>
-                      <div className="comparison-metrics">
-                        <span>Semantic {fmt(job.semantic_score)}</span>
-                        <span>Coverage {fmt(job.skill_coverage)}</span>
-                      </div>
-                      <div className="comparison-lists">
-                        <div>
-                          <strong>Matched</strong>
-                          <p>{job.matched_skills?.length ? job.matched_skills.join(', ') : 'None'}</p>
-                        </div>
-                        <div>
-                          <strong>Missing</strong>
-                          <p>{job.missing_skills?.length ? job.missing_skills.join(', ') : 'None'}</p>
-                        </div>
-                      </div>
-                    </article>
+            {jdMode === 'compare' && (
+              <>
+                <p className="ap-card-sub" style={{ marginBottom: '1rem' }}>
+                  Rank up to 3 roles and find your strongest fit.
+                </p>
+                <div className="ap-compare-grid">
+                  {compareJds.map((jd, i) => (
+                    <div className="ap-compare-col" key={i}>
+                      <label className="ap-compare-label" htmlFor={`cjd-${i}`}>Role {i + 1}</label>
+                      <textarea
+                        id={`cjd-${i}`}
+                        className="ap-textarea ap-textarea--sm"
+                        placeholder={`Paste job description ${i + 1}…`}
+                        value={jd}
+                        onChange={(e) => {
+                          const next = [...compareJds];
+                          next[i] = e.target.value;
+                          setCompareJds(next);
+                        }}
+                      />
+                    </div>
                   ))}
                 </div>
-              </div>
+                <button
+                  type="button"
+                  className="ap-btn"
+                  onClick={handleCompareJobs}
+                  disabled={loading || compareLoading}
+                >
+                  {compareLoading ? <><span className="ap-spinner" /> Ranking…</> : 'Compare 3 JDs →'}
+                </button>
+
+                {compareError && (
+                  <div className="ap-error" style={{ marginTop: '1rem' }}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="5" x2="8" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="8" cy="11.5" r="0.75" fill="currentColor"/></svg>
+                    {compareError}
+                  </div>
+                )}
+
+                {compareResult?.ranked_jobs?.length > 0 && (
+                  <div className="ap-compare-results">
+                    <div className="ap-winner">
+                      <span className="ap-winner-eyebrow">Best Match</span>
+                      <strong className="ap-winner-name">{compareResult.best_match?.label}</strong>
+                      <span className="ap-winner-score">{compareResult.best_match?.score}%</span>
+                    </div>
+                    <div className="ap-rank-list">
+                      {compareResult.ranked_jobs.map((job) => (
+                        <article key={`${job.label}-${job.rank}`} className={`ap-rank-card ${job.rank === 1 ? 'ap-rank-card--top' : ''}`}>
+                          <div className="ap-rank-top">
+                            <div className="ap-rank-meta">
+                              <span className="ap-rank-badge">#{job.rank}</span>
+                              <h4 className="ap-rank-name">{job.label}</h4>
+                            </div>
+                            <span className="ap-rank-score">{job.score}%</span>
+                          </div>
+                          <div className="ap-rank-track">
+                            <div className="ap-rank-fill" style={{ width: `${job.score}%` }} />
+                          </div>
+                          <div className="ap-rank-metrics">
+                            <span>Semantic {fmt(job.semantic_score)}</span>
+                            <span>Coverage {fmt(job.skill_coverage)}</span>
+                          </div>
+                          <div className="ap-rank-skills">
+                            <div>
+                              <strong>Matched</strong>
+                              <p>{job.matched_skills?.length ? job.matched_skills.join(', ') : 'None'}</p>
+                            </div>
+                            <div>
+                              <strong>Missing</strong>
+                              <p>{job.missing_skills?.length ? job.missing_skills.join(', ') : 'None'}</p>
+                            </div>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </section>
         )}
 
-        {/* ── Results ── */}
+        {error && (
+          <div className="ap-error">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="5" x2="8" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="8" cy="11.5" r="0.75" fill="currentColor"/></svg>
+            {error}
+          </div>
+        )}
+
+        {/* ── RESULTS ── */}
         {result && (
-          <section className="card">
-            <div className="results-header">
-              <div className="composite-score">
-                <span className="score-value">{result.score}%</span>
-                <span className="score-label">Overall Match Score</span>
+          <section className="ap-card ap-card--results ap-card--enter">
+
+            {/* Score ring + metrics */}
+            <div className="ap-results-top">
+              <div className="ap-ring-wrap">
+                <div
+                  className="ap-ring"
+                  style={{
+                    background: `conic-gradient(from -90deg, #b8ff3d ${result.score / 100 * 360}deg, #181c28 0deg)`,
+                  }}
+                >
+                  <div className="ap-ring-face">
+                    <span className="ap-ring-num">{result.score}</span>
+                    <span className="ap-ring-pct">%</span>
+                    <span className="ap-ring-lbl">match score</span>
+                  </div>
+                </div>
               </div>
 
-              <table className="score-details-table">
-                <tbody>
-                  <tr>
-                    <td className="label">Semantic Similarity</td>
-                    <td className="value">{fmt(result.semantic_score)}</td>
-                    <td className="weight">60% wgt</td>
-                  </tr>
-                  <tr>
-                    <td className="label">Skill Coverage</td>
-                    <td className="value">{fmt(result.skill_coverage)}</td>
-                    <td className="weight">40% wgt</td>
-                  </tr>
-                  <tr>
-                    <td className="label">Skills Section Match</td>
-                    <td className="value">{fmt(result.section_scores?.skills)}</td>
-                    <td className="weight">Info</td>
-                  </tr>
-                  <tr>
-                    <td className="label">Experience Section Match</td>
-                    <td className="value">{fmt(result.section_scores?.experience)}</td>
-                    <td className="weight">Info</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div className="ap-metrics">
+                {[
+                  { label: 'Semantic Similarity', val: result.semantic_score, weight: '60% weight', cls: 'ap-fill--lime' },
+                  { label: 'Skill Coverage',       val: result.skill_coverage, weight: '40% weight', cls: 'ap-fill--indigo' },
+                  { label: 'Skills Section',        val: result.section_scores?.skills,     weight: 'info', cls: 'ap-fill--orange' },
+                  { label: 'Experience Section',    val: result.section_scores?.experience,  weight: 'info', cls: 'ap-fill--orange' },
+                ].map(({ label, val, weight, cls }) => (
+                  <div key={label} className="ap-metric">
+                    <div className="ap-metric-hd">
+                      <span className="ap-metric-label">{label}</span>
+                      <span className="ap-metric-val">{fmt(val)}</span>
+                    </div>
+                    <div className="ap-metric-track">
+                      <div className={`ap-metric-fill ${cls}`} style={{ width: `${val ?? 0}%` }} />
+                    </div>
+                    <span className="ap-metric-weight">{weight}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="skills-grid">
-              <div className="skills-list-block matched">
-                <h3>
+            {/* Skills */}
+            <div className="ap-skills-cols">
+              <div className="ap-skills-block">
+                <h3 className="ap-skills-title ap-skills-title--match">
                   Matched Skills
-                  <span className="badge-count">{result.matched_skills.length}</span>
+                  <span className="ap-skills-count ap-skills-count--match">{result.matched_skills.length}</span>
                 </h3>
-                {result.matched_skills.length === 0 ? (
-                  <p className="empty-state">No direct skill matches found.</p>
-                ) : (
-                  <ul className="skills-list">
-                    {result.matched_skills.map((s) => (
-                      <li key={s} className="skill-tag">{s}</li>
-                    ))}
-                  </ul>
-                )}
+                {result.matched_skills.length === 0
+                  ? <p className="ap-empty">No direct skill matches found.</p>
+                  : (
+                    <div className="ap-pills">
+                      {result.matched_skills.map((s) => (
+                        <span key={s} className="ap-pill ap-pill--match">{s}</span>
+                      ))}
+                    </div>
+                  )}
               </div>
-              
-              <div className="skills-list-block missing">
-                <h3>
+
+              <div className="ap-skills-block">
+                <h3 className="ap-skills-title ap-skills-title--miss">
                   Missing Skills
-                  <span className="badge-count">{result.missing_skills.length}</span>
+                  <span className="ap-skills-count ap-skills-count--miss">{result.missing_skills.length}</span>
                 </h3>
-                {result.missing_skills.length === 0 ? (
-                  <p className="empty-state">Excellent! No missing skills spotted.</p>
-                ) : (
-                  <ul className="skills-list">
-                    {result.missing_skills.map((s) => (
-                      <li key={s} className="skill-tag">{s}</li>
-                    ))}
-                  </ul>
-                )}
+                {result.missing_skills.length === 0
+                  ? <p className="ap-empty">No missing skills — excellent coverage.</p>
+                  : (
+                    <div className="ap-pills">
+                      {result.missing_skills.map((s) => (
+                        <span key={s} className="ap-pill ap-pill--miss">{s}</span>
+                      ))}
+                    </div>
+                  )}
               </div>
             </div>
 
-            {/* ── Feedback ── */}
-            <div className="feedback-section">
-              <div className="feedback-section-header">
-                <div className="feedback-title-group">
-                  <h3>AI Resume Enhancement</h3>
-                  <p>Optimize your experience bullet points using Gemini to better align with the job description.</p>
+            {/* AI Enhancement */}
+            <div className="ap-enhance">
+              <div className="ap-enhance-hd">
+                <div>
+                  <h3 className="ap-enhance-title">AI Resume Enhancement</h3>
+                  <p className="ap-enhance-sub">Rewrite experience bullets to better align with this JD using Gemini.</p>
                 </div>
                 <button
                   type="button"
-                  className="feedback-button"
+                  className="ap-btn ap-btn--glow"
                   onClick={handleImproveResume}
                   disabled={loading || feedbackLoading}
                 >
-                  {feedbackLoading ? 'Generating ✨' : 'Enhance Resume'}
+                  {feedbackLoading
+                    ? <><span className="ap-spinner" /> Generating…</>
+                    : 'Enhance Resume ✦'}
                 </button>
               </div>
 
-              {feedbackError && <div className="error-msg">⚠️ {feedbackError}</div>}
+              {feedbackError && (
+                <div className="ap-error">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="5" x2="8" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="8" cy="11.5" r="0.75" fill="currentColor"/></svg>
+                  {feedbackError}
+                </div>
+              )}
 
               {feedback?.suggestions?.length > 0 && (
-                <div className="suggestions-grid">
+                <div className="ap-suggestions">
                   {feedback.suggestions.map((item, index) => (
-                    <article key={`${item.original_bullet}-${index}`} className="suggestion-card">
-                      <div className="suggestion-comparison">
-                        <div className="suggestion-col">
-                          <span className="suggestion-label">Current Bullet</span>
-                          <p className="suggestion-original">{item.original_bullet}</p>
+                    <article key={`${item.original_bullet}-${index}`} className="ap-sug">
+                      <div className="ap-sug-pair">
+                        <div className="ap-sug-col ap-sug-col--before">
+                          <span className="ap-sug-label">Before</span>
+                          <p className="ap-sug-text">{item.original_bullet}</p>
                         </div>
-                        <div className="suggestion-col">
-                          <span className="suggestion-label">Suggested Update</span>
-                          <p className="suggestion-rewrite">{item.rewritten_bullet}</p>
+                        <div className="ap-sug-arrow" aria-hidden="true">→</div>
+                        <div className="ap-sug-col ap-sug-col--after">
+                          <span className="ap-sug-label">After</span>
+                          <p className="ap-sug-text">{item.rewritten_bullet}</p>
                         </div>
                       </div>
-                      <div className="suggestion-reasoning">
+                      <div className="ap-sug-reasons">
                         {item.target_skill && (
-                          <div className="reason-row">
-                            <span className="reason-tag" style={{ background: '#f5f3ff', color: '#4f46e5' }}>Skill Targeted</span>
-                            <p className="reason-text"><strong>{item.target_skill}</strong></p>
+                          <div className="ap-reason-row">
+                            <span className="ap-reason-tag ap-reason-tag--skill">Skill</span>
+                            <span className="ap-reason-txt">{item.target_skill}</span>
                           </div>
                         )}
-                        <div className="reason-row">
-                          <span className="reason-tag">Alignment</span>
-                          <p className="reason-text">{item.jd_alignment}</p>
+                        <div className="ap-reason-row">
+                          <span className="ap-reason-tag ap-reason-tag--align">Alignment</span>
+                          <span className="ap-reason-txt">{item.jd_alignment}</span>
                         </div>
-                        <div className="reason-row">
-                          <span className="reason-tag">Why</span>
-                          <p className="reason-text">{item.reason}</p>
+                        <div className="ap-reason-row">
+                          <span className="ap-reason-tag ap-reason-tag--why">Why</span>
+                          <span className="ap-reason-txt">{item.reason}</span>
                         </div>
                       </div>
                     </article>
@@ -503,13 +649,14 @@ function App() {
               )}
 
               {feedback && feedback.suggestions?.length === 0 && (
-                <p className="empty-state" style={{ marginTop: '1rem' }}>
-                  No solid rewrite suggestions were generated from the available evidence.
+                <p className="ap-empty" style={{ marginTop: '1rem' }}>
+                  No rewrite suggestions generated from the available evidence.
                 </p>
               )}
             </div>
           </section>
         )}
+
       </main>
     </div>
   );

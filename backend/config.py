@@ -15,6 +15,7 @@ WEIGHTS = {
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "resume_matcher")
 MONGO_USERS_COLLECTION = os.getenv("MONGO_USERS_COLLECTION", "users")
+MONGO_RESUMES_COLLECTION = os.getenv("MONGO_RESUMES_COLLECTION", "resumes")
 
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-me-in-production")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")

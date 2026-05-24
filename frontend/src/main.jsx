@@ -9,6 +9,7 @@ import Signup from './pages/Signup.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import ProtectedAuthRoute from './components/ProtectedAuthRoute.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
+import Profile from './pages/Profile.jsx';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -37,6 +38,14 @@ createRoot(document.getElementById('root')).render(
             element={
               <ProtectedRoute>
                 <App />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
               </ProtectedRoute>
             }
           />
