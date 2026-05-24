@@ -5,7 +5,7 @@ import './App.css';
 
 function App() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const [health, setHealth] = useState(null);
 
   const [savedResumes, setSavedResumes] = useState([]);
@@ -209,13 +209,11 @@ function App() {
               className={`ap-health-dot ${health?.status === 'ok' ? 'ap-health-ok' : 'ap-health-err'}`}
               title={`Backend ${health?.status ?? 'checking…'}`}
             />
-            <Link to="/profile" className="ap-nav-link">Profile</Link>
-
             {user && (
-              <div className="ap-user">
+              <Link to="/profile" className="ap-user ap-user-link">
                 <div className="ap-avatar">{initials}</div>
                 <span className="ap-username">{user.first_name} {user.last_name}</span>
-              </div>
+              </Link>
             )}
 
             <button className="ap-signout" onClick={handleLogout}>Sign out</button>

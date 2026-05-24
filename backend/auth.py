@@ -31,6 +31,15 @@ class GoogleLoginRequest(BaseModel):
     id_token: str
 
 
+class SetPasswordRequest(BaseModel):
+    password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class UserOut(BaseModel):
     id: str
     first_name: str
@@ -247,6 +256,48 @@ def get_current_user(authorization: str | None = Header(default=None)) -> dict:
 @router.get("/me", response_model=UserOut)
 def me(current_user: dict = Depends(get_current_user)):
     return _public_user(current_user)
+
+
+@router.post("/set-password", response_model=AuthResponse)
+def set_password(body: SetPasswordRequest, current_user: dict = Depends(get_current_user)):
+    if "password" in current_user.get("auth_providers", []):
+        raise HTTPException(status_code=400, detail="A password is already set for this account")
+    if not body.password or len(body.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    now = datetime.now(timezone.utc)
+    users_collection.update_one(
+        {"_id": current_user["_id"]},
+        {
+            "$set": {
+                "password_hash": _hash_password(body.password),
+                "auth_providers": sorted(set(current_user.get("auth_providers", []) + ["password"])),
+                "updated_at": now,
+            }
+        },
+    )
+    user_doc = users_collection.find_one({"_id": current_user["_id"]})
+    return _auth_response(user_doc)
+
+
+@router.post("/change-password")
+def change_password(body: ChangePasswordRequest, current_user: dict = Depends(get_current_user)):
+    if "password" not in current_user.get("auth_providers", []):
+        raise HTTPException(status_code=400, detail="No password is set for this account")
+    if not current_user.get("password_hash"):
+        raise HTTPException(status_code=400, detail="No password is set for this account")
+    if not _verify_password(body.current_password, current_user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    if body.current_password == body.new_password:
+        raise HTTPException(status_code=400, detail="New password must differ from the current one")
+
+    users_collection.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {"password_hash": _hash_password(body.new_password), "updated_at": datetime.now(timezone.utc)}},
+    )
+    return {"message": "Password updated successfully"}
 
 
 @router.post("/logout")

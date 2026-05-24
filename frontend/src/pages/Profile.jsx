@@ -11,7 +11,7 @@ function authHeaders(token) {
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user, token, logout } = useAuth();
+  const { user, token, login, logout } = useAuth();
 
   const [resumes, setResumes] = useState([]);
   const [resumesLoading, setResumesLoading] = useState(true);
@@ -27,6 +27,21 @@ export default function Profile() {
 
   const [deletingId, setDeletingId] = useState(null);
   const fileRef = useRef(null);
+
+  const [showAddPwd, setShowAddPwd] = useState(false);
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [addPwdLoading, setAddPwdLoading] = useState(false);
+  const [addPwdError, setAddPwdError] = useState(null);
+  const [addPwdSuccess, setAddPwdSuccess] = useState(null);
+
+  const [showChangePwd, setShowChangePwd] = useState(false);
+  const [currentPwd, setCurrentPwd] = useState('');
+  const [chNewPwd, setChNewPwd] = useState('');
+  const [chConfirmPwd, setChConfirmPwd] = useState('');
+  const [changePwdLoading, setChangePwdLoading] = useState(false);
+  const [changePwdError, setChangePwdError] = useState(null);
+  const [changePwdSuccess, setChangePwdSuccess] = useState(null);
 
   useEffect(() => {
     fetchResumes();
@@ -102,6 +117,58 @@ export default function Profile() {
     }
   }
 
+  async function handleAddPassword(e) {
+    e.preventDefault();
+    setAddPwdError(null);
+    setAddPwdSuccess(null);
+    if (newPwd.length < 8) { setAddPwdError('Password must be at least 8 characters'); return; }
+    if (newPwd !== confirmPwd) { setAddPwdError('Passwords do not match'); return; }
+    setAddPwdLoading(true);
+    try {
+      const res = await fetch('/api/auth/set-password', {
+        method: 'POST',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPwd }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to set password');
+      login(data.access_token, data.user);
+      setAddPwdSuccess('Password added! You can now sign in with email and password.');
+      setShowAddPwd(false);
+      setNewPwd('');
+      setConfirmPwd('');
+    } catch (err) {
+      setAddPwdError(err.message);
+    } finally {
+      setAddPwdLoading(false);
+    }
+  }
+
+  async function handleChangePassword(e) {
+    e.preventDefault();
+    setChangePwdError(null);
+    setChangePwdSuccess(null);
+    if (chNewPwd.length < 8) { setChangePwdError('New password must be at least 8 characters'); return; }
+    if (chNewPwd !== chConfirmPwd) { setChangePwdError('Passwords do not match'); return; }
+    setChangePwdLoading(true);
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password: currentPwd, new_password: chNewPwd }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to change password');
+      setChangePwdSuccess('Password updated successfully.');
+      setShowChangePwd(false);
+      setCurrentPwd(''); setChNewPwd(''); setChConfirmPwd('');
+    } catch (err) {
+      setChangePwdError(err.message);
+    } finally {
+      setChangePwdLoading(false);
+    }
+  }
+
   function handleLogout() {
     logout();
     navigate('/');
@@ -144,6 +211,143 @@ export default function Profile() {
             </div>
           </div>
         </section>
+
+        {/* ── ADD PASSWORD (Google-only users) ── */}
+        {user && !user.auth_providers?.includes('password') && (
+          <section className="pf-pw-section">
+            <div className="pf-vault-hd" style={{ marginBottom: showAddPwd ? '1.25rem' : 0 }}>
+              <div>
+                <h2 className="pf-vault-title">Add a Password</h2>
+                <p className="pf-vault-sub">Set a password so you can also sign in with your email.</p>
+              </div>
+              {!showAddPwd && (
+                <button className="pf-btn-outline" onClick={() => setShowAddPwd(true)}>
+                  + Add Password
+                </button>
+              )}
+            </div>
+
+            {addPwdSuccess && !showAddPwd && (
+              <div className="pf-success">{addPwdSuccess}</div>
+            )}
+
+            {showAddPwd && (
+              <form className="pf-upload-form" onSubmit={handleAddPassword}>
+                <div className="pf-pw-fields">
+                  <div className="pf-field">
+                    <label className="pf-label">New Password</label>
+                    <input
+                      className="pf-input"
+                      type="password"
+                      placeholder="At least 8 characters"
+                      value={newPwd}
+                      onChange={(e) => setNewPwd(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="pf-field">
+                    <label className="pf-label">Confirm Password</label>
+                    <input
+                      className="pf-input"
+                      type="password"
+                      placeholder="Repeat password"
+                      value={confirmPwd}
+                      onChange={(e) => setConfirmPwd(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+                {addPwdError && <div className="pf-error">{addPwdError}</div>}
+                <div className="pf-pw-actions">
+                  <button type="submit" className="pf-btn" disabled={addPwdLoading}>
+                    {addPwdLoading ? 'Saving…' : 'Set Password →'}
+                  </button>
+                  <button
+                    type="button"
+                    className="pf-btn-ghost"
+                    onClick={() => { setShowAddPwd(false); setAddPwdError(null); setNewPwd(''); setConfirmPwd(''); }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+          </section>
+        )}
+
+        {/* ── CHANGE PASSWORD (users who have a password) ── */}
+        {user && user.auth_providers?.includes('password') && (
+          <section className="pf-pw-section">
+            <div className="pf-vault-hd" style={{ marginBottom: showChangePwd ? '1.25rem' : 0 }}>
+              <div>
+                <h2 className="pf-vault-title">Change Password</h2>
+                <p className="pf-vault-sub">Update the password you use to sign in.</p>
+              </div>
+              {!showChangePwd && (
+                <button className="pf-btn-outline" onClick={() => { setShowChangePwd(true); setChangePwdSuccess(null); }}>
+                  Change Password
+                </button>
+              )}
+            </div>
+
+            {changePwdSuccess && !showChangePwd && (
+              <div className="pf-success">{changePwdSuccess}</div>
+            )}
+
+            {showChangePwd && (
+              <form className="pf-upload-form" onSubmit={handleChangePassword}>
+                <div className="pf-field">
+                  <label className="pf-label">Current Password</label>
+                  <input
+                    className="pf-input"
+                    type="password"
+                    placeholder="Your current password"
+                    value={currentPwd}
+                    onChange={(e) => setCurrentPwd(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div className="pf-pw-fields">
+                  <div className="pf-field">
+                    <label className="pf-label">New Password</label>
+                    <input
+                      className="pf-input"
+                      type="password"
+                      placeholder="At least 8 characters"
+                      value={chNewPwd}
+                      onChange={(e) => setChNewPwd(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="pf-field">
+                    <label className="pf-label">Confirm New Password</label>
+                    <input
+                      className="pf-input"
+                      type="password"
+                      placeholder="Repeat new password"
+                      value={chConfirmPwd}
+                      onChange={(e) => setChConfirmPwd(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+                {changePwdError && <div className="pf-error">{changePwdError}</div>}
+                <div className="pf-pw-actions">
+                  <button type="submit" className="pf-btn" disabled={changePwdLoading}>
+                    {changePwdLoading ? 'Updating…' : 'Update Password →'}
+                  </button>
+                  <button
+                    type="button"
+                    className="pf-btn-ghost"
+                    onClick={() => { setShowChangePwd(false); setChangePwdError(null); setCurrentPwd(''); setChNewPwd(''); setChConfirmPwd(''); }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+          </section>
+        )}
 
         {/* ── RESUME VAULT ── */}
         <section className="pf-vault">

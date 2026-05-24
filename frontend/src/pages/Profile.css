@@ -179,6 +179,82 @@
   color: var(--indigo);
 }
 
+/* ── ADD PASSWORD SECTION ── */
+.pf-pw-section {
+  background: linear-gradient(180deg, rgba(255,255,255,0.025) 0%, transparent 32%), var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2rem;
+  animation: pf-in 0.48s 0.04s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+.pf-pw-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 560px) {
+  .pf-pw-fields { grid-template-columns: 1fr; }
+}
+
+.pf-pw-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.pf-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1.25rem;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid rgba(184,255,61,0.35);
+  border-radius: 10px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pf-btn-outline:hover {
+  background: rgba(184,255,61,0.07);
+  border-color: rgba(184,255,61,0.6);
+}
+
+.pf-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.25rem;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.pf-btn-ghost:hover { color: var(--text); border-color: var(--border-hi); }
+
+.pf-success {
+  background: rgba(184,255,61,0.07);
+  border: 1px solid rgba(184,255,61,0.2);
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
 /* ── VAULT SECTION ── */
 .pf-vault {
   background: linear-gradient(180deg, rgba(255,255,255,0.025) 0%, transparent 32%), var(--surface);
