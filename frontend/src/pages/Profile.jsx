@@ -8,7 +8,7 @@ const MAX_RESUMES = 5;
 const PROVIDER_DEFS = [
   { id: 'openai',    name: 'OpenAI',       keyPlaceholder: 'sk-...',     models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],                               defaultModel: 'gpt-4o-mini' },
   { id: 'anthropic', name: 'Anthropic',    keyPlaceholder: 'sk-ant-...', models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'], defaultModel: 'claude-sonnet-4-6' },
-  { id: 'google',    name: 'Google Gemini',keyPlaceholder: 'AIza...',    models: ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-pro', 'gemini-1.5-flash'],        defaultModel: 'gemini-2.0-flash' },
+  { id: 'google',    name: 'Google Gemini',keyPlaceholder: 'AIza...',    models: ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-1.5-pro', 'gemini-1.5-flash'],        defaultModel: 'gemini-3.5-flash' },
   { id: 'groq',      name: 'Groq',         keyPlaceholder: 'gsk_...',    models: ['llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'], defaultModel: 'llama-3.1-70b-versatile' },
 ];
 

@@ -1,18 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
+import { PROVIDER_DEFS, getBYOK } from './constants.js';
+import ResumeInput from './components/app/ResumeInput.jsx';
+import JobDescription from './components/app/JobDescription.jsx';
+import ScoreResults from './components/app/ScoreResults.jsx';
+import AIEnhancement from './components/app/AIEnhancement.jsx';
 import './App.css';
-
-const PROVIDER_DEFS = [
-  { id: 'openai',    name: 'OpenAI',         models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],                               defaultModel: 'gpt-4o-mini' },
-  { id: 'anthropic', name: 'Anthropic',       models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'], defaultModel: 'claude-sonnet-4-6' },
-  { id: 'google',    name: 'Google Gemini',   models: ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-pro', 'gemini-1.5-flash'],        defaultModel: 'gemini-2.0-flash' },
-  { id: 'groq',      name: 'Groq',            models: ['llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'], defaultModel: 'llama-3.1-70b-versatile' },
-];
-
-function getBYOK() {
-  try { return JSON.parse(localStorage.getItem('rm_byok') || '{}'); } catch { return {}; }
-}
 
 function App() {
   const navigate = useNavigate();
@@ -46,10 +40,11 @@ function App() {
   const [acceptedSubs, setAcceptedSubs] = useState(new Set());
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState(null);
+  const [selectedTemplate, setSelectedTemplate] = useState('classic');
 
   const [aiProvider, setAiProvider] = useState(() => {
     const keys = getBYOK();
-    return PROVIDER_DEFS.find(p => keys[p.id]?.key)?.id || null;
+    return PROVIDER_DEFS.find((p) => keys[p.id]?.key)?.id || null;
   });
 
   useEffect(() => {
@@ -58,6 +53,14 @@ function App() {
       .then(setHealth)
       .catch(() => setHealth({ status: 'error' }));
   }, []);
+
+  function handleModeChange(newMode) {
+    setMode(newMode);
+    setResumeText(null);
+    setResult(null);
+    setError(null);
+    setSelectedResumeId(null);
+  }
 
   async function handleResumeSubmit(e) {
     e.preventDefault();
@@ -110,6 +113,18 @@ function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleJdModeChange(newJdMode) {
+    if (newJdMode === 'single') {
+      setError(null);
+      setResult(null);
+      setFeedback(null);
+    } else {
+      setCompareError(null);
+      setCompareResult(null);
+    }
+    setJdMode(newJdMode);
   }
 
   async function handleCompareJobs(e) {
@@ -182,7 +197,7 @@ function App() {
   }
 
   function toggleSub(index) {
-    setAcceptedSubs(prev => {
+    setAcceptedSubs((prev) => {
       const next = new Set(prev);
       next.has(index) ? next.delete(index) : next.add(index);
       return next;
@@ -196,12 +211,12 @@ function App() {
     try {
       const accepted = feedback.suggestions
         .filter((_, i) => acceptedSubs.has(i))
-        .map(s => ({ original_bullet: s.original_bullet, rewritten_bullet: s.rewritten_bullet }));
+        .map((s) => ({ original_bullet: s.original_bullet, rewritten_bullet: s.rewritten_bullet }));
 
       const res = await fetch('/api/generate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resume_text: resumeText, accepted_substitutions: accepted }),
+        body: JSON.stringify({ resume_text: resumeText, accepted_substitutions: accepted, template: selectedTemplate }),
       });
 
       const data = await res.json().catch(() => null);
@@ -210,14 +225,14 @@ function App() {
       }
 
       const binary = atob(data.pdf_b64);
-      const bytes  = new Uint8Array(binary.length);
+      const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       const blob = new Blob([bytes], { type: 'application/pdf' });
       console.log('[PDF] blob size:', blob.size);
 
       const url = URL.createObjectURL(blob);
-      const a   = document.createElement('a');
-      a.href     = url;
+      const a = document.createElement('a');
+      a.href = url;
       a.download = 'updated_resume.pdf';
       document.body.appendChild(a);
       a.click();
@@ -229,8 +244,6 @@ function App() {
       setGenerating(false);
     }
   }
-
-  const fmt = (v) => (v == null ? 'n/a' : `${v}%`);
 
   function handleLogout() {
     logout();
@@ -281,7 +294,7 @@ function App() {
   return (
     <div className="ap-root">
 
-      {/* ── NAV ── */}
+      {/* NAV */}
       <nav className="ap-nav">
         <div className="ap-nav-inner">
           <Link to="/" className="ap-logo">Resume<em>Matcher</em></Link>
@@ -297,16 +310,15 @@ function App() {
                 <span className="ap-username">{user.first_name} {user.last_name}</span>
               </Link>
             )}
-
             <button className="ap-signout" onClick={handleLogout}>Sign out</button>
           </div>
         </div>
       </nav>
 
-      {/* ── MAIN ── */}
+      {/* MAIN */}
       <main className="ap-main">
 
-        {/* Step progress */}
+        {/* Step indicator */}
         <div className="ap-steps">
           {[
             { n: 1, label: 'Resume' },
@@ -316,7 +328,9 @@ function App() {
             <div key={n} className="ap-step-group">
               <div className={`ap-step-node ${step >= n ? 'ap--done' : ''} ${step === n ? 'ap--active' : ''}`}>
                 <div className="ap-step-dot">
-                  {step > n ? <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg> : <span>{n}</span>}
+                  {step > n
+                    ? <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    : <span>{n}</span>}
                 </div>
                 <span className="ap-step-label">{label}</span>
               </div>
@@ -325,260 +339,54 @@ function App() {
           ))}
         </div>
 
-        {/* ── STEP 1: Resume ── */}
+        {/* Step 1 */}
         <section className="ap-card">
           <h2 className="ap-card-title">
             <span className="ap-step-badge">01</span>
             Provide Your Resume
           </h2>
-
-          <div className="ap-tabs">
-            <button
-              type="button"
-              className={`ap-tab ${mode === 'upload' ? 'ap--active' : ''}`}
-              onClick={() => { setMode('upload'); setResumeText(null); setResult(null); setError(null); setSelectedResumeId(null); }}
-            >
-              Upload PDF
-            </button>
-            <button
-              type="button"
-              className={`ap-tab ${mode === 'paste' ? 'ap--active' : ''}`}
-              onClick={() => { setMode('paste'); setResumeText(null); setResult(null); setError(null); setSelectedResumeId(null); }}
-            >
-              Paste Text
-            </button>
-            <button
-              type="button"
-              className={`ap-tab ${mode === 'select' ? 'ap--active' : ''}`}
-              onClick={() => { setMode('select'); setResumeText(null); setResult(null); setError(null); setSelectedResumeId(null); fetchSavedResumes(); }}
-            >
-              Select from Profile
-            </button>
-          </div>
-
-          {(mode === 'upload' || mode === 'paste') && (
-            <form onSubmit={handleResumeSubmit}>
-              {mode === 'upload' ? (
-                <div className="ap-dropzone">
-                  <input
-                    className="ap-file-input"
-                    type="file"
-                    accept="application/pdf"
-                    onChange={(e) => setFile(e.target.files[0] ?? null)}
-                    id="pdf-upload"
-                  />
-                  <label htmlFor="pdf-upload" className="ap-dropzone-label">
-                    <span className="ap-dropzone-icon">
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                        <line x1="12" y1="18" x2="12" y2="12"/>
-                        <line x1="9" y1="15" x2="15" y2="15"/>
-                      </svg>
-                    </span>
-                    <span className="ap-dropzone-main">
-                      {file ? file.name : 'Drop PDF here or click to browse'}
-                    </span>
-                    <span className="ap-dropzone-hint">PDF files only · max 10 MB</span>
-                  </label>
-                </div>
-              ) : (
-                <textarea
-                  className="ap-textarea"
-                  placeholder="Paste your resume text here…"
-                  value={pasteText}
-                  onChange={(e) => setPasteText(e.target.value)}
-                />
-              )}
-              <button type="submit" className="ap-btn" disabled={loading}>
-                {loading && !resumeText
-                  ? <><span className="ap-spinner" /> Extracting…</>
-                  : 'Process Resume →'}
-              </button>
-            </form>
-          )}
-
-          {mode === 'select' && (
-            <div className="ap-saved-list">
-              {savedLoading && (
-                <div className="ap-saved-loading">
-                  <span className="ap-spinner ap-spinner--dark" /> Loading saved resumes…
-                </div>
-              )}
-              {savedError && (
-                <div className="ap-error">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="5" x2="8" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="8" cy="11.5" r="0.75" fill="currentColor"/></svg>
-                  {savedError}
-                </div>
-              )}
-              {!savedLoading && !savedError && savedResumes.length === 0 && (
-                <div className="ap-saved-empty">
-                  No resumes saved yet.{' '}
-                  <Link to="/profile" className="ap-saved-link">Go to Profile →</Link>
-                </div>
-              )}
-              {!savedLoading && savedResumes.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  className={`ap-saved-card ${selectedResumeId === r.id ? 'ap-saved-card--active' : ''}`}
-                  onClick={() => handleSelectResume(r.id)}
-                  disabled={loading}
-                >
-                  <div className="ap-saved-card-left">
-                    <span className={`ap-saved-source ap-saved-source--${r.source}`}>
-                      {r.source === 'pdf' ? 'PDF' : 'Text'}
-                    </span>
-                    <div className="ap-saved-card-info">
-                      <span className="ap-saved-name">{r.label}</span>
-                      <span className="ap-saved-date">
-                        {new Date(r.uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </span>
-                    </div>
-                  </div>
-                  {selectedResumeId === r.id && loading
-                    ? <span className="ap-spinner ap-spinner--dark" />
-                    : selectedResumeId === r.id && resumeText
-                      ? <span className="ap-saved-check">✓ Selected</span>
-                      : <span className="ap-saved-use">Use this →</span>
-                  }
-                </button>
-              ))}
-            </div>
-          )}
-
-          {resumeText && (
-            <div className="ap-preview">
-              <div className="ap-preview-hd">
-                <span className="ap-preview-tag">Extracted Text</span>
-                <span className="ap-preview-ok">✓ Ready</span>
-              </div>
-              <pre className="ap-preview-body">{resumeText}</pre>
-            </div>
-          )}
+          <ResumeInput
+            token={token}
+            mode={mode}
+            setMode={handleModeChange}
+            file={file}
+            setFile={setFile}
+            pasteText={pasteText}
+            setPasteText={setPasteText}
+            resumeText={resumeText}
+            loading={loading}
+            error={error}
+            savedResumes={savedResumes}
+            savedLoading={savedLoading}
+            savedError={savedError}
+            selectedResumeId={selectedResumeId}
+            onSubmit={handleResumeSubmit}
+            onSelectResume={handleSelectResume}
+            onFetchSaved={fetchSavedResumes}
+          />
         </section>
 
-        {/* ── STEP 2: JD (single or compare) ── */}
+        {/* Step 2 */}
         {resumeText && (
           <section className="ap-card ap-card--enter">
             <h2 className="ap-card-title">
               <span className="ap-step-badge">02</span>
               Job Description
             </h2>
-
-            <div className="ap-tabs">
-              <button
-                type="button"
-                className={`ap-tab ${jdMode === 'single' ? 'ap--active' : ''}`}
-                onClick={() => { setJdMode('single'); setError(null); setResult(null); setFeedback(null); }}
-              >
-                Analyze Single JD
-              </button>
-              <button
-                type="button"
-                className={`ap-tab ${jdMode === 'compare' ? 'ap--active' : ''}`}
-                onClick={() => { setJdMode('compare'); setCompareError(null); setCompareResult(null); }}
-              >
-                Compare 3 JDs
-              </button>
-            </div>
-
-            {jdMode === 'single' && (
-              <form onSubmit={handleScore}>
-                <textarea
-                  className="ap-textarea"
-                  placeholder="Paste the job description here to compare…"
-                  value={jdText}
-                  onChange={(e) => setJdText(e.target.value)}
-                />
-                <button type="submit" className="ap-btn" disabled={loading}>
-                  {loading && resumeText && !result
-                    ? <><span className="ap-spinner" /> Analyzing…</>
-                    : 'Analyze Match →'}
-                </button>
-              </form>
-            )}
-
-            {jdMode === 'compare' && (
-              <>
-                <p className="ap-card-sub" style={{ marginBottom: '1rem' }}>
-                  Rank up to 3 roles and find your strongest fit.
-                </p>
-                <div className="ap-compare-grid">
-                  {compareJds.map((jd, i) => (
-                    <div className="ap-compare-col" key={i}>
-                      <label className="ap-compare-label" htmlFor={`cjd-${i}`}>Role {i + 1}</label>
-                      <textarea
-                        id={`cjd-${i}`}
-                        className="ap-textarea ap-textarea--sm"
-                        placeholder={`Paste job description ${i + 1}…`}
-                        value={jd}
-                        onChange={(e) => {
-                          const next = [...compareJds];
-                          next[i] = e.target.value;
-                          setCompareJds(next);
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="ap-btn"
-                  onClick={handleCompareJobs}
-                  disabled={loading || compareLoading}
-                >
-                  {compareLoading ? <><span className="ap-spinner" /> Ranking…</> : 'Compare 3 JDs →'}
-                </button>
-
-                {compareError && (
-                  <div className="ap-error" style={{ marginTop: '1rem' }}>
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="5" x2="8" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="8" cy="11.5" r="0.75" fill="currentColor"/></svg>
-                    {compareError}
-                  </div>
-                )}
-
-                {compareResult?.ranked_jobs?.length > 0 && (
-                  <div className="ap-compare-results">
-                    <div className="ap-winner">
-                      <span className="ap-winner-eyebrow">Best Match</span>
-                      <strong className="ap-winner-name">{compareResult.best_match?.label}</strong>
-                      <span className="ap-winner-score">{compareResult.best_match?.score}%</span>
-                    </div>
-                    <div className="ap-rank-list">
-                      {compareResult.ranked_jobs.map((job) => (
-                        <article key={`${job.label}-${job.rank}`} className={`ap-rank-card ${job.rank === 1 ? 'ap-rank-card--top' : ''}`}>
-                          <div className="ap-rank-top">
-                            <div className="ap-rank-meta">
-                              <span className="ap-rank-badge">#{job.rank}</span>
-                              <h4 className="ap-rank-name">{job.label}</h4>
-                            </div>
-                            <span className="ap-rank-score">{job.score}%</span>
-                          </div>
-                          <div className="ap-rank-track">
-                            <div className="ap-rank-fill" style={{ width: `${job.score}%` }} />
-                          </div>
-                          <div className="ap-rank-metrics">
-                            <span>Semantic {fmt(job.semantic_score)}</span>
-                            <span>Coverage {fmt(job.skill_coverage)}</span>
-                          </div>
-                          <div className="ap-rank-skills">
-                            <div>
-                              <strong>Matched</strong>
-                              <p>{job.matched_skills?.length ? job.matched_skills.join(', ') : 'None'}</p>
-                            </div>
-                            <div>
-                              <strong>Missing</strong>
-                              <p>{job.missing_skills?.length ? job.missing_skills.join(', ') : 'None'}</p>
-                            </div>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+            <JobDescription
+              jdMode={jdMode}
+              setJdMode={handleJdModeChange}
+              jdText={jdText}
+              setJdText={setJdText}
+              compareJds={compareJds}
+              setCompareJds={setCompareJds}
+              compareResult={compareResult}
+              loading={loading}
+              compareLoading={compareLoading}
+              compareError={compareError}
+              onScore={handleScore}
+              onCompare={handleCompareJobs}
+            />
           </section>
         )}
 
@@ -589,219 +397,28 @@ function App() {
           </div>
         )}
 
-        {/* ── RESULTS ── */}
+        {/* Results */}
         {result && (
           <section className="ap-card ap-card--results ap-card--enter">
-
-            {/* Score ring + metrics */}
-            <div className="ap-results-top">
-              <div className="ap-ring-wrap">
-                <div
-                  className="ap-ring"
-                  style={{
-                    background: `conic-gradient(from -90deg, #b8ff3d ${result.score / 100 * 360}deg, #181c28 0deg)`,
-                  }}
-                >
-                  <div className="ap-ring-face">
-                    <span className="ap-ring-num">{result.score}</span>
-                    <span className="ap-ring-pct">%</span>
-                    <span className="ap-ring-lbl">match score</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="ap-metrics">
-                {[
-                  { label: 'Semantic Similarity', val: result.semantic_score, weight: '60% weight', cls: 'ap-fill--lime' },
-                  { label: 'Skill Coverage',       val: result.skill_coverage, weight: '40% weight', cls: 'ap-fill--indigo' },
-                  { label: 'Skills Section',        val: result.section_scores?.skills,     weight: 'info', cls: 'ap-fill--orange' },
-                  { label: 'Experience Section',    val: result.section_scores?.experience,  weight: 'info', cls: 'ap-fill--orange' },
-                ].map(({ label, val, weight, cls }) => (
-                  <div key={label} className="ap-metric">
-                    <div className="ap-metric-hd">
-                      <span className="ap-metric-label">{label}</span>
-                      <span className="ap-metric-val">{fmt(val)}</span>
-                    </div>
-                    <div className="ap-metric-track">
-                      <div className={`ap-metric-fill ${cls}`} style={{ width: `${val ?? 0}%` }} />
-                    </div>
-                    <span className="ap-metric-weight">{weight}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Skills */}
-            <div className="ap-skills-cols">
-              <div className="ap-skills-block">
-                <h3 className="ap-skills-title ap-skills-title--match">
-                  Matched Skills
-                  <span className="ap-skills-count ap-skills-count--match">{result.matched_skills.length}</span>
-                </h3>
-                {result.matched_skills.length === 0
-                  ? <p className="ap-empty">No direct skill matches found.</p>
-                  : (
-                    <div className="ap-pills">
-                      {result.matched_skills.map((s) => (
-                        <span key={s} className="ap-pill ap-pill--match">{s}</span>
-                      ))}
-                    </div>
-                  )}
-              </div>
-
-              <div className="ap-skills-block">
-                <h3 className="ap-skills-title ap-skills-title--miss">
-                  Missing Skills
-                  <span className="ap-skills-count ap-skills-count--miss">{result.missing_skills.length}</span>
-                </h3>
-                {result.missing_skills.length === 0
-                  ? <p className="ap-empty">No missing skills — excellent coverage.</p>
-                  : (
-                    <div className="ap-pills">
-                      {result.missing_skills.map((s) => (
-                        <span key={s} className="ap-pill ap-pill--miss">{s}</span>
-                      ))}
-                    </div>
-                  )}
-              </div>
-            </div>
-
-            {/* AI Enhancement */}
-            <div className="ap-enhance">
-              <div className="ap-enhance-hd">
-                <div>
-                  <h3 className="ap-enhance-title">AI Resume Enhancement</h3>
-                  <p className="ap-enhance-sub">Rewrite experience bullets to better align with this JD.</p>
-                </div>
-              </div>
-
-              {/* Provider picker */}
-              {(() => {
-                const keys = getBYOK();
-                const configured = PROVIDER_DEFS.filter(p => keys[p.id]?.key);
-                if (configured.length === 0) {
-                  return (
-                    <div className="ap-byok-empty">
-                      <span>No API key configured.</span>
-                      <Link to="/profile" className="ap-byok-link">Add one in Profile →</Link>
-                    </div>
-                  );
-                }
-                return (
-                  <div className="ap-byok-row">
-                    <div className="ap-byok-chips">
-                      {configured.map(p => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          className={`ap-byok-chip ${aiProvider === p.id ? 'ap-byok-chip--active' : ''}`}
-                          onClick={() => setAiProvider(p.id)}
-                        >
-                          {p.name}
-                          {aiProvider === p.id && keys[p.id]?.model && (
-                            <span className="ap-byok-model">{keys[p.id].model}</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      className="ap-btn ap-btn--glow"
-                      onClick={handleImproveResume}
-                      disabled={!aiProvider || loading || feedbackLoading}
-                    >
-                      {feedbackLoading
-                        ? <><span className="ap-spinner" /> Generating…</>
-                        : 'Enhance Resume ✦'}
-                    </button>
-                  </div>
-                );
-              })()}
-
-
-              {feedbackError && (
-                <div className="ap-error">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><line x1="8" y1="5" x2="8" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="8" cy="11.5" r="0.75" fill="currentColor"/></svg>
-                  {feedbackError}
-                </div>
-              )}
-
-              {feedback?.suggestions?.length > 0 && (
-                <>
-                  <div className="ap-suggestions">
-                    {feedback.suggestions.map((item, index) => {
-                      const checked = acceptedSubs.has(index);
-                      return (
-                        <article
-                          key={`${item.original_bullet}-${index}`}
-                          className={`ap-sug ${checked ? 'ap-sug--checked' : ''}`}
-                          onClick={() => toggleSub(index)}
-                        >
-                          <div className="ap-sug-check">
-                            <span className={`ap-checkbox ${checked ? 'ap-checkbox--on' : ''}`}>
-                              {checked && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                            </span>
-                          </div>
-                          <div className="ap-sug-body">
-                            <div className="ap-sug-pair">
-                              <div className="ap-sug-col ap-sug-col--before">
-                                <span className="ap-sug-label">Before</span>
-                                <p className="ap-sug-text">{item.original_bullet}</p>
-                              </div>
-                              <div className="ap-sug-arrow" aria-hidden="true">→</div>
-                              <div className="ap-sug-col ap-sug-col--after">
-                                <span className="ap-sug-label">After</span>
-                                <p className="ap-sug-text">{item.rewritten_bullet}</p>
-                              </div>
-                            </div>
-                            <div className="ap-sug-reasons">
-                              {item.target_skill && (
-                                <div className="ap-reason-row">
-                                  <span className="ap-reason-tag ap-reason-tag--skill">Skill</span>
-                                  <span className="ap-reason-txt">{item.target_skill}</span>
-                                </div>
-                              )}
-                              <div className="ap-reason-row">
-                                <span className="ap-reason-tag ap-reason-tag--align">Alignment</span>
-                                <span className="ap-reason-txt">{item.jd_alignment}</span>
-                              </div>
-                              <div className="ap-reason-row">
-                                <span className="ap-reason-tag ap-reason-tag--why">Why</span>
-                                <span className="ap-reason-txt">{item.reason}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-
-                  {/* Download bar */}
-                  <div className="ap-dl-bar">
-                    <span className="ap-dl-count">
-                      {acceptedSubs.size} of {feedback.suggestions.length} selected
-                    </span>
-                    {generateError && <span className="ap-dl-err">{generateError}</span>}
-                    <button
-                      type="button"
-                      className="ap-btn ap-btn--glow"
-                      onClick={handleGeneratePDF}
-                      disabled={acceptedSubs.size === 0 || generating}
-                    >
-                      {generating
-                        ? <><span className="ap-spinner" /> Building PDF…</>
-                        : '↓ Download Updated Resume'}
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {feedback && feedback.suggestions?.length === 0 && (
-                <p className="ap-empty" style={{ marginTop: '1rem' }}>
-                  No rewrite suggestions generated from the available evidence.
-                </p>
-              )}
-            </div>
+            <ScoreResults result={result} />
+            <AIEnhancement
+              result={result}
+              resumeText={resumeText}
+              jdText={jdText}
+              feedback={feedback}
+              feedbackLoading={feedbackLoading}
+              feedbackError={feedbackError}
+              acceptedSubs={acceptedSubs}
+              generating={generating}
+              generateError={generateError}
+              aiProvider={aiProvider}
+              setAiProvider={setAiProvider}
+              selectedTemplate={selectedTemplate}
+              setSelectedTemplate={setSelectedTemplate}
+              onImprove={handleImproveResume}
+              onToggleSub={toggleSub}
+              onGeneratePDF={handleGeneratePDF}
+            />
           </section>
         )}
 
