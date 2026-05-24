@@ -255,6 +255,99 @@
   color: var(--accent);
 }
 
+/* ── API KEY GRID ── */
+.pf-key-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.pf-key-card {
+  background: var(--surface-hi);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  transition: border-color 0.2s;
+}
+
+.pf-key-card--active {
+  border-color: rgba(184,255,61,0.25);
+}
+
+.pf-key-card-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.pf-key-provider-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pf-key-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pf-key-badge--ok {
+  background: rgba(184,255,61,0.08);
+  border: 1px solid rgba(184,255,61,0.2);
+  color: var(--accent);
+}
+
+.pf-key-badge--none {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.pf-key-input-wrap {
+  position: relative;
+}
+
+.pf-key-input-wrap .pf-input {
+  width: 100%;
+  padding-right: 2.5rem;
+  box-sizing: border-box;
+}
+
+.pf-key-toggle {
+  position: absolute;
+  right: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: 0.25rem;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.pf-key-toggle:hover { color: var(--text); }
+
+.pf-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  padding-right: 2.2rem;
+  cursor: pointer;
+}
+
 /* ── VAULT SECTION ── */
 .pf-vault {
   background: linear-gradient(180deg, rgba(255,255,255,0.025) 0%, transparent 32%), var(--surface);

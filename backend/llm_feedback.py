@@ -1,12 +1,14 @@
 import json
-import os
+import re
 from typing import Any
 from urllib import error, request
 
 
-OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
-DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 MAX_SUGGESTIONS = 5
+
+_OPENAI_URL    = "https://api.openai.com/v1/chat/completions"
+_ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+_GROQ_URL      = "https://api.groq.com/openai/v1/chat/completions"
 
 
 class LLMFeedbackError(RuntimeError):
@@ -23,7 +25,6 @@ def _build_messages(*, resume_text: str, jd_text: str, skill_gap: dict[str, Any]
         "Avoid generic advice like 'tailor your resume' or 'highlight leadership'. "
         f"Cap the list at {MAX_SUGGESTIONS} suggestions."
     )
-
     user = {
         "resume_text": resume_text,
         "experience_section": experience_text,
@@ -50,97 +51,117 @@ def _build_messages(*, resume_text: str, jd_text: str, skill_gap: dict[str, Any]
             "Return a JSON object with a top-level suggestions array and no markdown fences.",
         ],
     }
-
     return [
         {"role": "system", "content": system},
         {"role": "user", "content": json.dumps(user, ensure_ascii=True)},
     ]
 
 
-def _call_openai(messages: list[dict[str, str]]) -> dict[str, Any]:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise LLMFeedbackError("OPENAI_API_KEY is not set")
-
-    payload = {
-        "model": DEFAULT_MODEL,
-        "messages": messages,
-        "temperature": 0.3,
-        "response_format": {"type": "json_object"},
-    }
-
-    req = request.Request(
-        OPENAI_API_URL,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-
+def _parse_json(text: str) -> dict[str, Any]:
+    text = text.strip()
     try:
-        with request.urlopen(req, timeout=60) as resp:
-            raw = resp.read().decode("utf-8")
-    except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise LLMFeedbackError(f"OpenAI request failed: {detail}") from exc
-    except error.URLError as exc:
-        raise LLMFeedbackError(f"OpenAI request failed: {exc.reason}") from exc
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if match:
+        return json.loads(match.group(1).strip())
+    match = re.search(r"\{[\s\S]*\}", text)
+    if match:
+        return json.loads(match.group())
+    raise LLMFeedbackError("Could not parse JSON from LLM response")
 
-    data = json.loads(raw)
-    content = data["choices"][0]["message"]["content"]
-    return json.loads(content)
 
-
-def _call_gemini(messages: list[dict[str, str]]) -> dict[str, Any]:
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise LLMFeedbackError("GEMINI_API_KEY is not set")
-
-    model = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-
-    # Extract system and user from OpenAI-style messages array
-    system_text = next((m["content"] for m in messages if m["role"] == "system"), "")
-    user_text = next((m["content"] for m in messages if m["role"] == "user"), "")
-
-    payload = {
-        "systemInstruction": {"parts": [{"text": system_text}]},
-        "contents": [{"parts": [{"text": user_text}]}],
-        "generationConfig": {
-            "temperature": 0.3,
-            "responseMimeType": "application/json",
-        }
-    }
-
+def _http_post(url: str, payload: dict, headers: dict) -> dict[str, Any]:
     req = request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-        },
+        headers={"Content-Type": "application/json", **headers},
         method="POST",
     )
-
     try:
         with request.urlopen(req, timeout=60) as resp:
-            raw = resp.read().decode("utf-8")
+            return json.loads(resp.read().decode("utf-8"))
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        raise LLMFeedbackError(f"Gemini request failed: {detail}") from exc
+        raise LLMFeedbackError(f"HTTP {exc.code}: {detail}") from exc
     except error.URLError as exc:
-        raise LLMFeedbackError(f"Gemini request failed: {exc.reason}") from exc
+        raise LLMFeedbackError(str(exc.reason)) from exc
 
-    data = json.loads(raw)
+
+def _call_openai(messages: list[dict], api_key: str, model: str) -> dict[str, Any]:
+    data = _http_post(
+        _OPENAI_URL,
+        {"model": model, "messages": messages, "temperature": 0.3, "response_format": {"type": "json_object"}},
+        {"Authorization": f"Bearer {api_key}"},
+    )
+    return _parse_json(data["choices"][0]["message"]["content"])
+
+
+def _call_anthropic(messages: list[dict], api_key: str, model: str) -> dict[str, Any]:
+    system_text = next((m["content"] for m in messages if m["role"] == "system"), "")
+    user_text   = next((m["content"] for m in messages if m["role"] == "user"),   "")
+    data = _http_post(
+        _ANTHROPIC_URL,
+        {
+            "model": model,
+            "max_tokens": 2048,
+            "temperature": 0.3,
+            "system": system_text,
+            "messages": [{"role": "user", "content": user_text}],
+        },
+        {"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+    )
+    return _parse_json(data["content"][0]["text"])
+
+
+def _call_gemini(messages: list[dict], api_key: str, model: str) -> dict[str, Any]:
+    system_text = next((m["content"] for m in messages if m["role"] == "system"), "")
+    user_text   = next((m["content"] for m in messages if m["role"] == "user"),   "")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    data = _http_post(
+        url,
+        {
+            "systemInstruction": {"parts": [{"text": system_text}]},
+            "contents": [{"parts": [{"text": user_text}]}],
+            "generationConfig": {"temperature": 0.3, "responseMimeType": "application/json"},
+        },
+        {},
+    )
     try:
-        content = data["candidates"][0]["content"]["parts"][0]["text"]
-        return json.loads(content)
-    except (KeyError, IndexError, json.JSONDecodeError) as exc:
+        return _parse_json(data["candidates"][0]["content"]["parts"][0]["text"])
+    except (KeyError, IndexError) as exc:
         raise LLMFeedbackError("Unrecognized response format from Gemini") from exc
 
 
-def generate_resume_feedback(*, resume_text: str, jd_text: str, skill_gap: dict[str, Any], experience_text: str) -> list[dict[str, str]]:
+def _call_groq(messages: list[dict], api_key: str, model: str) -> dict[str, Any]:
+    data = _http_post(
+        _GROQ_URL,
+        {"model": model, "messages": messages, "temperature": 0.3, "response_format": {"type": "json_object"}},
+        {"Authorization": f"Bearer {api_key}"},
+    )
+    return _parse_json(data["choices"][0]["message"]["content"])
+
+
+_CALLERS = {
+    "openai":    _call_openai,
+    "anthropic": _call_anthropic,
+    "google":    _call_gemini,
+    "gemini":    _call_gemini,
+    "groq":      _call_groq,
+}
+
+
+def generate_resume_feedback(
+    *,
+    resume_text: str,
+    jd_text: str,
+    skill_gap: dict[str, Any],
+    experience_text: str,
+    provider: str | None = None,
+    model: str | None = None,
+    api_key: str | None = None,
+) -> list[dict[str, str]]:
     messages = _build_messages(
         resume_text=resume_text,
         jd_text=jd_text,
@@ -148,14 +169,24 @@ def generate_resume_feedback(*, resume_text: str, jd_text: str, skill_gap: dict[
         experience_text=experience_text,
     )
 
-    provider = os.getenv("LLM_PROVIDER", "openai").lower().strip()
-    
-    if provider == "openai":
-        payload = _call_openai(messages)
-    elif provider == "gemini":
-        payload = _call_gemini(messages)
-    else:
-        raise LLMFeedbackError(f"Unsupported LLM_PROVIDER '{provider}'. Supported: 'openai', 'gemini'.")
+    if not provider:
+        raise LLMFeedbackError("No provider specified. Select a provider and add your API key in Profile → API Keys.")
+    if not api_key:
+        raise LLMFeedbackError(f"No API key provided for '{provider}'. Add it in Profile → API Keys.")
+    if not model:
+        raise LLMFeedbackError(f"No model specified for '{provider}'.")
+
+    resolved_provider = provider.lower().strip()
+    caller = _CALLERS.get(resolved_provider)
+    if not caller:
+        raise LLMFeedbackError(f"Unsupported provider '{resolved_provider}'. Supported: {', '.join(_CALLERS)}")
+
+    try:
+        payload = caller(messages, api_key, model)
+    except LLMFeedbackError:
+        raise
+    except Exception as exc:
+        raise LLMFeedbackError(str(exc)) from exc
 
     suggestions = payload.get("suggestions", [])
     if not isinstance(suggestions, list):
@@ -165,21 +196,16 @@ def generate_resume_feedback(*, resume_text: str, jd_text: str, skill_gap: dict[
     for item in suggestions[:MAX_SUGGESTIONS]:
         if not isinstance(item, dict):
             continue
-        original_bullet = str(item.get("original_bullet", "")).strip()
-        rewritten_bullet = str(item.get("rewritten_bullet", "")).strip()
-        target_skill = str(item.get("target_skill", "")).strip()
-        reason = str(item.get("reason", "")).strip()
-        jd_alignment = str(item.get("jd_alignment", "")).strip()
-        if not original_bullet or not rewritten_bullet:
+        original  = str(item.get("original_bullet",  "")).strip()
+        rewritten = str(item.get("rewritten_bullet",  "")).strip()
+        if not original or not rewritten:
             continue
-        normalized.append(
-            {
-                "original_bullet": original_bullet,
-                "rewritten_bullet": rewritten_bullet,
-                "target_skill": target_skill,
-                "reason": reason,
-                "jd_alignment": jd_alignment,
-            }
-        )
+        normalized.append({
+            "original_bullet":  original,
+            "rewritten_bullet": rewritten,
+            "target_skill":     str(item.get("target_skill",  "")).strip(),
+            "reason":           str(item.get("reason",        "")).strip(),
+            "jd_alignment":     str(item.get("jd_alignment",  "")).strip(),
+        })
 
     return normalized

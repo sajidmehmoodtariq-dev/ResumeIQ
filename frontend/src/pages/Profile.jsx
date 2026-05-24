@@ -5,6 +5,13 @@ import './Profile.css';
 
 const MAX_RESUMES = 5;
 
+const PROVIDER_DEFS = [
+  { id: 'openai',    name: 'OpenAI',       keyPlaceholder: 'sk-...',     models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],                               defaultModel: 'gpt-4o-mini' },
+  { id: 'anthropic', name: 'Anthropic',    keyPlaceholder: 'sk-ant-...', models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'], defaultModel: 'claude-sonnet-4-6' },
+  { id: 'google',    name: 'Google Gemini',keyPlaceholder: 'AIza...',    models: ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-pro', 'gemini-1.5-flash'],        defaultModel: 'gemini-2.0-flash' },
+  { id: 'groq',      name: 'Groq',         keyPlaceholder: 'gsk_...',    models: ['llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'], defaultModel: 'llama-3.1-70b-versatile' },
+];
+
 function authHeaders(token) {
   return { Authorization: `Bearer ${token}` };
 }
@@ -34,6 +41,14 @@ export default function Profile() {
   const [addPwdLoading, setAddPwdLoading] = useState(false);
   const [addPwdError, setAddPwdError] = useState(null);
   const [addPwdSuccess, setAddPwdSuccess] = useState(null);
+
+  const [keyDrafts, setKeyDrafts] = useState(() => {
+    const saved = JSON.parse(localStorage.getItem('rm_byok') || '{}');
+    return PROVIDER_DEFS.reduce((acc, p) => {
+      acc[p.id] = { key: saved[p.id]?.key || '', model: saved[p.id]?.model || p.defaultModel, show: false, saved: !!saved[p.id]?.key };
+      return acc;
+    }, {});
+  });
 
   const [showChangePwd, setShowChangePwd] = useState(false);
   const [currentPwd, setCurrentPwd] = useState('');
@@ -167,6 +182,23 @@ export default function Profile() {
     } finally {
       setChangePwdLoading(false);
     }
+  }
+
+  function handleSaveKey(id) {
+    const draft = keyDrafts[id];
+    if (!draft.key.trim()) return;
+    const stored = JSON.parse(localStorage.getItem('rm_byok') || '{}');
+    stored[id] = { key: draft.key.trim(), model: draft.model };
+    localStorage.setItem('rm_byok', JSON.stringify(stored));
+    setKeyDrafts(prev => ({ ...prev, [id]: { ...prev[id], saved: true } }));
+  }
+
+  function handleClearKey(id) {
+    const stored = JSON.parse(localStorage.getItem('rm_byok') || '{}');
+    delete stored[id];
+    localStorage.setItem('rm_byok', JSON.stringify(stored));
+    const def = PROVIDER_DEFS.find(p => p.id === id);
+    setKeyDrafts(prev => ({ ...prev, [id]: { key: '', model: def.defaultModel, show: false, saved: false } }));
   }
 
   function handleLogout() {
@@ -348,6 +380,86 @@ export default function Profile() {
             )}
           </section>
         )}
+
+        {/* ── API KEYS ── */}
+        <section className="pf-pw-section">
+          <div className="pf-vault-hd" style={{ marginBottom: '1.5rem' }}>
+            <div>
+              <h2 className="pf-vault-title">API Keys</h2>
+              <p className="pf-vault-sub">Keys are stored locally in your browser and sent directly to each provider — never saved on our servers.</p>
+            </div>
+          </div>
+          <div className="pf-key-grid">
+            {PROVIDER_DEFS.map(p => {
+              const d = keyDrafts[p.id];
+              return (
+                <div key={p.id} className={`pf-key-card ${d.saved ? 'pf-key-card--active' : ''}`}>
+                  <div className="pf-key-card-hd">
+                    <span className="pf-key-provider-name">{p.name}</span>
+                    {d.saved
+                      ? <span className="pf-key-badge pf-key-badge--ok">Configured</span>
+                      : <span className="pf-key-badge pf-key-badge--none">Not set</span>
+                    }
+                  </div>
+
+                  <div className="pf-field">
+                    <label className="pf-label">API Key</label>
+                    <div className="pf-key-input-wrap">
+                      <input
+                        className="pf-input"
+                        type={d.show ? 'text' : 'password'}
+                        placeholder={p.keyPlaceholder}
+                        value={d.key}
+                        onChange={e => setKeyDrafts(prev => ({ ...prev, [p.id]: { ...prev[p.id], key: e.target.value, saved: false } }))}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <button
+                        type="button"
+                        className="pf-key-toggle"
+                        onClick={() => setKeyDrafts(prev => ({ ...prev, [p.id]: { ...prev[p.id], show: !prev[p.id].show } }))}
+                        title={d.show ? 'Hide' : 'Show'}
+                      >
+                        {d.show
+                          ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                          : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        }
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pf-field">
+                    <label className="pf-label">Model</label>
+                    <select
+                      className="pf-input pf-select"
+                      value={d.model}
+                      onChange={e => setKeyDrafts(prev => ({ ...prev, [p.id]: { ...prev[p.id], model: e.target.value, saved: false } }))}
+                    >
+                      {p.models.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="pf-pw-actions">
+                    <button
+                      type="button"
+                      className="pf-btn"
+                      style={{ flex: 1 }}
+                      onClick={() => handleSaveKey(p.id)}
+                      disabled={!d.key.trim()}
+                    >
+                      Save
+                    </button>
+                    {d.saved && (
+                      <button type="button" className="pf-btn-ghost" onClick={() => handleClearKey(p.id)}>
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
         {/* ── RESUME VAULT ── */}
         <section className="pf-vault">

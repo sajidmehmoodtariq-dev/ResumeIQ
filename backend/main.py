@@ -152,6 +152,9 @@ class FeedbackRequest(BaseModel):
     resume_text: str
     jd_text: str
     skill_gap: SkillGapRequest
+    provider: str | None = None
+    model: str | None = None
+    api_key: str | None = None
 
 
 class CompareJobRequest(BaseModel):
@@ -228,6 +231,9 @@ def improve_resume(body: FeedbackRequest):
             jd_text=body.jd_text,
             skill_gap=skill_gap,
             experience_text=experience_text,
+            provider=body.provider,
+            model=body.model,
+            api_key=body.api_key,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

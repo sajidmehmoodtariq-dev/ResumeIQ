@@ -3,6 +3,17 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import './App.css';
 
+const PROVIDER_DEFS = [
+  { id: 'openai',    name: 'OpenAI',         models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],                               defaultModel: 'gpt-4o-mini' },
+  { id: 'anthropic', name: 'Anthropic',       models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'], defaultModel: 'claude-sonnet-4-6' },
+  { id: 'google',    name: 'Google Gemini',   models: ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-pro', 'gemini-1.5-flash'],        defaultModel: 'gemini-2.0-flash' },
+  { id: 'groq',      name: 'Groq',            models: ['llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'], defaultModel: 'llama-3.1-70b-versatile' },
+];
+
+function getBYOK() {
+  try { return JSON.parse(localStorage.getItem('rm_byok') || '{}'); } catch { return {}; }
+}
+
 function App() {
   const navigate = useNavigate();
   const { user, token, logout } = useAuth();
@@ -31,6 +42,11 @@ function App() {
   const [feedbackError, setFeedbackError] = useState(null);
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState(null);
+
+  const [aiProvider, setAiProvider] = useState(() => {
+    const keys = getBYOK();
+    return PROVIDER_DEFS.find(p => keys[p.id]?.key)?.id || null;
+  });
 
   useEffect(() => {
     fetch('/api/health')
@@ -123,6 +139,14 @@ function App() {
     if (!resumeText || !result) return;
     setFeedbackError(null);
     setFeedback(null);
+
+    const keys = getBYOK();
+    const providerCfg = aiProvider ? keys[aiProvider] : null;
+    if (!providerCfg?.key) {
+      setFeedbackError('No API key configured — add one in your Profile under "API Keys".');
+      return;
+    }
+
     setFeedbackLoading(true);
     try {
       const res = await fetch('/api/feedback', {
@@ -136,6 +160,9 @@ function App() {
             matched_skills: result.matched_skills,
             missing_skills: result.missing_skills,
           },
+          provider: aiProvider,
+          model: providerCfg.model,
+          api_key: providerCfg.key,
         }),
       });
       const data = await res.json();
@@ -589,19 +616,53 @@ function App() {
               <div className="ap-enhance-hd">
                 <div>
                   <h3 className="ap-enhance-title">AI Resume Enhancement</h3>
-                  <p className="ap-enhance-sub">Rewrite experience bullets to better align with this JD using Gemini.</p>
+                  <p className="ap-enhance-sub">Rewrite experience bullets to better align with this JD.</p>
                 </div>
-                <button
-                  type="button"
-                  className="ap-btn ap-btn--glow"
-                  onClick={handleImproveResume}
-                  disabled={loading || feedbackLoading}
-                >
-                  {feedbackLoading
-                    ? <><span className="ap-spinner" /> Generating…</>
-                    : 'Enhance Resume ✦'}
-                </button>
               </div>
+
+              {/* Provider picker */}
+              {(() => {
+                const keys = getBYOK();
+                const configured = PROVIDER_DEFS.filter(p => keys[p.id]?.key);
+                if (configured.length === 0) {
+                  return (
+                    <div className="ap-byok-empty">
+                      <span>No API key configured.</span>
+                      <Link to="/profile" className="ap-byok-link">Add one in Profile →</Link>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="ap-byok-row">
+                    <div className="ap-byok-chips">
+                      {configured.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className={`ap-byok-chip ${aiProvider === p.id ? 'ap-byok-chip--active' : ''}`}
+                          onClick={() => setAiProvider(p.id)}
+                        >
+                          {p.name}
+                          {aiProvider === p.id && keys[p.id]?.model && (
+                            <span className="ap-byok-model">{keys[p.id].model}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="ap-btn ap-btn--glow"
+                      onClick={handleImproveResume}
+                      disabled={!aiProvider || loading || feedbackLoading}
+                    >
+                      {feedbackLoading
+                        ? <><span className="ap-spinner" /> Generating…</>
+                        : 'Enhance Resume ✦'}
+                    </button>
+                  </div>
+                );
+              })()}
+
 
               {feedbackError && (
                 <div className="ap-error">
