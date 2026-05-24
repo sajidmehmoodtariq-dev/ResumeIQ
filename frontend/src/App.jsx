@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext.jsx';
 import './App.css';
 
 function App() {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [health, setHealth] = useState(null);
 
   const [mode, setMode] = useState('upload');
@@ -164,13 +168,42 @@ function App() {
 
   const fmt = (v) => (v == null ? 'n/a' : `${v}%`);
 
+  function handleLogout() {
+    logout();
+    navigate('/');
+  }
+
   return (
     <div className="layout-container">
       <header className="app-header">
         <h1 className="app-title">Resume Matcher</h1>
-        <span className={`status-badge ${health?.status === 'ok' ? 'ok' : 'error'}`}>
-          Backend {health ? 'Online' : 'Offline'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span className={`status-badge ${health?.status === 'ok' ? 'ok' : 'error'}`}>
+            Backend {health ? 'Online' : 'Offline'}
+          </span>
+          {user && (
+            <>
+              <span style={{ fontSize: '0.85rem', opacity: 0.8 }}>
+                {user.first_name} {user.last_name}
+              </span>
+              <button
+                onClick={handleLogout}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #b8ff3d',
+                  background: 'transparent',
+                  color: '#b8ff3d',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                }}
+              >
+                Logout
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
       <main>

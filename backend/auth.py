@@ -247,3 +247,9 @@ def get_current_user(authorization: str | None = Header(default=None)) -> dict:
 @router.get("/me", response_model=UserOut)
 def me(current_user: dict = Depends(get_current_user)):
     return _public_user(current_user)
+
+
+@router.post("/logout")
+def logout():
+    """Logout endpoint (client removes token from localStorage)."""
+    return {"message": "Logged out successfully"}

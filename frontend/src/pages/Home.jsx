@@ -1,8 +1,17 @@
 import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 import './Home.css';
 
 export default function Home() {
+  const navigate = useNavigate();
+  const { user, isLoggedIn, logout } = useAuth();
+
+  function handleLogout() {
+    logout();
+    navigate('/');
+  }
+
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => entries.forEach(e => e.isIntersecting && e.target.classList.add('is-visible')),
@@ -25,9 +34,27 @@ export default function Home() {
         <div className="hm-nav-inner">
           <span className="hm-logo">Resume<em>Matcher</em></span>
           <div className="hm-nav-actions">
-            <Link to="/login" className="hm-nav-link">Sign In</Link>
-            <Link to="/signup" className="hm-nav-link">Sign Up</Link>
-            <Link to="/app" className="hm-nav-cta">Launch App →</Link>
+            {isLoggedIn ? (
+              <>
+                <span style={{ color: '#b8ff3d', fontSize: '0.9rem' }}>
+                  {user?.first_name} {user?.last_name}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="hm-nav-link"
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '10px 14px', borderRadius: '999px' }}
+                >
+                  Logout
+                </button>
+                <Link to="/app" className="hm-nav-cta">My Dashboard →</Link>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="hm-nav-link">Sign In</Link>
+                <Link to="/signup" className="hm-nav-link">Sign Up</Link>
+                <Link to="/app" className="hm-nav-cta">Launch App →</Link>
+              </>
+            )}
           </div>
         </div>
       </nav>

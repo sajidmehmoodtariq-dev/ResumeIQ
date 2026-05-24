@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import GoogleAuthButton from '../components/GoogleAuthButton.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import './Auth.css';
 
 export default function Signup() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -34,7 +36,7 @@ export default function Signup() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Registration failed');
-      localStorage.setItem('rm_token', data.access_token);
+      login(data.access_token, data.user);
       navigate('/app');
     } catch (err) {
       setError(err.message);
@@ -51,7 +53,7 @@ export default function Signup() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Google signup failed');
-    localStorage.setItem('rm_token', data.access_token);
+    login(data.access_token, data.user);
     navigate('/app');
   }
 
