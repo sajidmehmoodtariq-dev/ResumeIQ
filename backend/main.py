@@ -1,3 +1,4 @@
+import base64
 import io
 import os
 import numpy as np
@@ -10,8 +11,10 @@ from db import ensure_indexes
 from extractor import skill_gap
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 from llm_feedback import generate_resume_feedback
+from pdf_generator import apply_substitutions, generate_resume_pdf
 from sections import extract_sections
 from fastembed import TextEmbedding
 
@@ -239,3 +242,39 @@ def improve_resume(body: FeedbackRequest):
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return {"suggestions": suggestions}
+
+
+class AcceptedSub(BaseModel):
+    original_bullet: str
+    rewritten_bullet: str
+
+
+class GeneratePDFRequest(BaseModel):
+    resume_text: str
+    accepted_substitutions: list[AcceptedSub]
+
+
+@app.post("/api/generate-pdf")
+def generate_pdf(body: GeneratePDFRequest):
+    if not body.resume_text.strip():
+        raise HTTPException(status_code=400, detail="resume_text is empty")
+    if not body.accepted_substitutions:
+        raise HTTPException(status_code=400, detail="No substitutions selected")
+
+    subs = [s.model_dump() for s in body.accepted_substitutions]
+    mutated = apply_substitutions(body.resume_text, subs)
+    print(f"[PDF] resume_text length: {len(body.resume_text)}, subs: {len(subs)}, mutated length: {len(mutated)}")
+
+    try:
+        pdf_bytes = generate_resume_pdf(mutated)
+        print(f"[PDF] generated {len(pdf_bytes)} bytes")
+    except Exception as exc:
+        print(f"[PDF] generation FAILED: {exc}")
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}") from exc
+
+    if not pdf_bytes:
+        print("[PDF] ERROR: pdf_bytes is empty after generation")
+        raise HTTPException(status_code=500, detail="PDF generation produced empty output")
+
+    print(f"[PDF] sending {len(pdf_bytes)} bytes as base64 JSON")
+    return {"pdf_b64": base64.b64encode(pdf_bytes).decode("ascii")}

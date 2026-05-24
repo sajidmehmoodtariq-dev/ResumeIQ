@@ -43,6 +43,10 @@ function App() {
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState(null);
 
+  const [acceptedSubs, setAcceptedSubs] = useState(new Set());
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState(null);
+
   const [aiProvider, setAiProvider] = useState(() => {
     const keys = getBYOK();
     return PROVIDER_DEFS.find(p => keys[p.id]?.key)?.id || null;
@@ -168,10 +172,61 @@ function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Feedback generation failed');
       setFeedback(data);
+      setAcceptedSubs(new Set());
+      setGenerateError(null);
     } catch (err) {
       setFeedbackError(err.message);
     } finally {
       setFeedbackLoading(false);
+    }
+  }
+
+  function toggleSub(index) {
+    setAcceptedSubs(prev => {
+      const next = new Set(prev);
+      next.has(index) ? next.delete(index) : next.add(index);
+      return next;
+    });
+  }
+
+  async function handleGeneratePDF() {
+    if (!resumeText || acceptedSubs.size === 0) return;
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      const accepted = feedback.suggestions
+        .filter((_, i) => acceptedSubs.has(i))
+        .map(s => ({ original_bullet: s.original_bullet, rewritten_bullet: s.rewritten_bullet }));
+
+      const res = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resume_text: resumeText, accepted_substitutions: accepted }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        throw new Error(data?.detail || 'PDF generation failed');
+      }
+
+      const binary = atob(data.pdf_b64);
+      const bytes  = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      console.log('[PDF] blob size:', blob.size);
+
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href     = url;
+      a.download = 'updated_resume.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (err) {
+      setGenerateError(err.message);
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -672,39 +727,73 @@ function App() {
               )}
 
               {feedback?.suggestions?.length > 0 && (
-                <div className="ap-suggestions">
-                  {feedback.suggestions.map((item, index) => (
-                    <article key={`${item.original_bullet}-${index}`} className="ap-sug">
-                      <div className="ap-sug-pair">
-                        <div className="ap-sug-col ap-sug-col--before">
-                          <span className="ap-sug-label">Before</span>
-                          <p className="ap-sug-text">{item.original_bullet}</p>
-                        </div>
-                        <div className="ap-sug-arrow" aria-hidden="true">→</div>
-                        <div className="ap-sug-col ap-sug-col--after">
-                          <span className="ap-sug-label">After</span>
-                          <p className="ap-sug-text">{item.rewritten_bullet}</p>
-                        </div>
-                      </div>
-                      <div className="ap-sug-reasons">
-                        {item.target_skill && (
-                          <div className="ap-reason-row">
-                            <span className="ap-reason-tag ap-reason-tag--skill">Skill</span>
-                            <span className="ap-reason-txt">{item.target_skill}</span>
+                <>
+                  <div className="ap-suggestions">
+                    {feedback.suggestions.map((item, index) => {
+                      const checked = acceptedSubs.has(index);
+                      return (
+                        <article
+                          key={`${item.original_bullet}-${index}`}
+                          className={`ap-sug ${checked ? 'ap-sug--checked' : ''}`}
+                          onClick={() => toggleSub(index)}
+                        >
+                          <div className="ap-sug-check">
+                            <span className={`ap-checkbox ${checked ? 'ap-checkbox--on' : ''}`}>
+                              {checked && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                            </span>
                           </div>
-                        )}
-                        <div className="ap-reason-row">
-                          <span className="ap-reason-tag ap-reason-tag--align">Alignment</span>
-                          <span className="ap-reason-txt">{item.jd_alignment}</span>
-                        </div>
-                        <div className="ap-reason-row">
-                          <span className="ap-reason-tag ap-reason-tag--why">Why</span>
-                          <span className="ap-reason-txt">{item.reason}</span>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                          <div className="ap-sug-body">
+                            <div className="ap-sug-pair">
+                              <div className="ap-sug-col ap-sug-col--before">
+                                <span className="ap-sug-label">Before</span>
+                                <p className="ap-sug-text">{item.original_bullet}</p>
+                              </div>
+                              <div className="ap-sug-arrow" aria-hidden="true">→</div>
+                              <div className="ap-sug-col ap-sug-col--after">
+                                <span className="ap-sug-label">After</span>
+                                <p className="ap-sug-text">{item.rewritten_bullet}</p>
+                              </div>
+                            </div>
+                            <div className="ap-sug-reasons">
+                              {item.target_skill && (
+                                <div className="ap-reason-row">
+                                  <span className="ap-reason-tag ap-reason-tag--skill">Skill</span>
+                                  <span className="ap-reason-txt">{item.target_skill}</span>
+                                </div>
+                              )}
+                              <div className="ap-reason-row">
+                                <span className="ap-reason-tag ap-reason-tag--align">Alignment</span>
+                                <span className="ap-reason-txt">{item.jd_alignment}</span>
+                              </div>
+                              <div className="ap-reason-row">
+                                <span className="ap-reason-tag ap-reason-tag--why">Why</span>
+                                <span className="ap-reason-txt">{item.reason}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+
+                  {/* Download bar */}
+                  <div className="ap-dl-bar">
+                    <span className="ap-dl-count">
+                      {acceptedSubs.size} of {feedback.suggestions.length} selected
+                    </span>
+                    {generateError && <span className="ap-dl-err">{generateError}</span>}
+                    <button
+                      type="button"
+                      className="ap-btn ap-btn--glow"
+                      onClick={handleGeneratePDF}
+                      disabled={acceptedSubs.size === 0 || generating}
+                    >
+                      {generating
+                        ? <><span className="ap-spinner" /> Building PDF…</>
+                        : '↓ Download Updated Resume'}
+                    </button>
+                  </div>
+                </>
               )}
 
               {feedback && feedback.suggestions?.length === 0 && (

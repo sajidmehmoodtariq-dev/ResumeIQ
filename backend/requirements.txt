@@ -11,3 +11,5 @@ pymongo==4.11.1
 passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
 google-auth==2.38.0
+rapidfuzz==3.13.0
+reportlab==4.4.1
