@@ -300,6 +300,7 @@ function App() {
           <Link to="/" className="ap-logo">Resume<em>Matcher</em></Link>
 
           <div className="ap-nav-right">
+            <Link to="/build" className="ap-nav-pill">Build Resume</Link>
             <span
               className={`ap-health-dot ${health?.status === 'ok' ? 'ap-health-ok' : 'ap-health-err'}`}
               title={`Backend ${health?.status ?? 'checking…'}`}

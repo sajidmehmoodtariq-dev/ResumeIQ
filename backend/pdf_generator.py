@@ -236,11 +236,16 @@ def _build_section_flow(sections: list, styles: dict, compact: bool = False) -> 
             if itype == "blank":
                 story.append(Spacer(1, 0.02 * inch))
             elif itype == "subheading":
-                story.append(_story_paragraph(styles["subheading"], itext))
+                # If this section appears to be a Projects section, render subheadings
+                # (project names) with a square bullet and bold styling.
+                if "project" in section["title"].lower():
+                    story.append(_story_paragraph(styles["subheading"], itext, bullet="■"))
+                else:
+                    story.append(_story_paragraph(styles["subheading"], itext))
             elif itype == "meta":
                 story.append(_story_paragraph(styles["meta"], itext))
             elif itype == "bullet":
-                story.append(_story_paragraph(styles["bullet"], itext, bullet="▪"))
+                story.append(_story_paragraph(styles["bullet"], itext, bullet="○"))
             else:
                 story.append(_story_paragraph(styles["text"], itext))
         story.append(Spacer(1, spacer_height))

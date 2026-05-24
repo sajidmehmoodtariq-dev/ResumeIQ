@@ -10,6 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 import ProtectedAuthRoute from './components/ProtectedAuthRoute.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import Profile from './pages/Profile.jsx';
+import BuildResume from './pages/BuildResume.jsx';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -38,6 +39,14 @@ createRoot(document.getElementById('root')).render(
             element={
               <ProtectedRoute>
                 <App />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/build"
+            element={
+              <ProtectedRoute>
+                <BuildResume />
               </ProtectedRoute>
             }
           />

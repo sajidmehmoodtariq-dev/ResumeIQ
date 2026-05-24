@@ -25,9 +25,6 @@ class GeneratePDFRequest(BaseModel):
 async def generate_pdf(body: GeneratePDFRequest):
     if not body.resume_text.strip():
         raise HTTPException(status_code=400, detail="resume_text is empty")
-    if not body.accepted_substitutions:
-        raise HTTPException(status_code=400, detail="No substitutions selected")
-
     subs = [s.model_dump() for s in body.accepted_substitutions]
     mutated = apply_substitutions(body.resume_text, subs)
 

@@ -138,6 +138,24 @@
   border-color: var(--border-hi);
 }
 
+.ap-nav-pill {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  border: 1px solid var(--border-hi);
+  border-radius: 8px;
+  padding: 0.4rem 0.85rem;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.ap-nav-pill:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(184,255,61,0.06);
+}
+
 /* ═══════════════════════════════════════════════════════════════
    MAIN
 ════════════════════════════════════════════════════════════════ */
