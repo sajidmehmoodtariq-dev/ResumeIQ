@@ -372,3 +372,31 @@ def generate_resume_pdf(text: str, template: str = "classic") -> bytes:
 
 async def generate_resume_pdf_async(text: str, template: str = "classic") -> bytes:
     return _render_reportlab_pdf(text, template)
+
+
+def generate_cover_letter_pdf(text: str) -> bytes:
+    buffer = BytesIO()
+    margin = 1.0 * inch
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        leftMargin=margin,
+        rightMargin=margin,
+        topMargin=margin,
+        bottomMargin=margin,
+    )
+    body_style = ParagraphStyle(
+        "CLBody",
+        fontName="Helvetica",
+        fontSize=11,
+        leading=17,
+        spaceAfter=10,
+        textColor=colors.HexColor("#1f2937"),
+    )
+    story = []
+    for para in text.strip().split("\n\n"):
+        clean = para.strip()
+        if clean:
+            story.append(Paragraph(escape(clean.replace("\n", "<br/>")), body_style))
+    doc.build(story)
+    return buffer.getvalue()

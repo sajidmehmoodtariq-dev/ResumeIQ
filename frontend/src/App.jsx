@@ -6,6 +6,7 @@ import ResumeInput from './components/app/ResumeInput.jsx';
 import JobDescription from './components/app/JobDescription.jsx';
 import ScoreResults from './components/app/ScoreResults.jsx';
 import AIEnhancement from './components/app/AIEnhancement.jsx';
+import CoverLetter from './components/app/CoverLetter.jsx';
 import './App.css';
 
 function App() {
@@ -47,6 +48,11 @@ function App() {
     return PROVIDER_DEFS.find((p) => keys[p.id]?.key)?.id || null;
   });
 
+  const [coverLetter, setCoverLetter] = useState(null);
+  const [coverLetterLoading, setCoverLetterLoading] = useState(false);
+  const [coverLetterError, setCoverLetterError] = useState(null);
+  const [coverLetterDownloading, setCoverLetterDownloading] = useState(false);
+
   useEffect(() => {
     fetch('/api/health')
       .then((r) => r.json())
@@ -60,6 +66,7 @@ function App() {
     setResult(null);
     setError(null);
     setSelectedResumeId(null);
+    setCoverLetter(null);
   }
 
   async function handleResumeSubmit(e) {
@@ -250,6 +257,68 @@ function App() {
     navigate('/');
   }
 
+  async function handleGenerateCoverLetter() {
+    if (!resumeText || !jdText) return;
+    const keys = getBYOK();
+    const providerCfg = aiProvider ? keys[aiProvider] : null;
+    if (!providerCfg?.key) {
+      setCoverLetterError('No API key configured — add one in your Profile under "API Keys".');
+      return;
+    }
+    setCoverLetterLoading(true);
+    setCoverLetterError(null);
+    try {
+      const res = await fetch('/api/cover-letter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resume_text: resumeText,
+          jd_text: jdText,
+          provider: aiProvider,
+          model: providerCfg.model,
+          api_key: providerCfg.key,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Cover letter generation failed');
+      setCoverLetter(data.cover_letter);
+    } catch (err) {
+      setCoverLetterError(err.message);
+    } finally {
+      setCoverLetterLoading(false);
+    }
+  }
+
+  async function handleDownloadCoverLetterPdf() {
+    if (!coverLetter) return;
+    setCoverLetterDownloading(true);
+    try {
+      const res = await fetch('/api/cover-letter-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cover_letter: coverLetter }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) throw new Error(data?.detail || 'PDF generation failed');
+      const binary = atob(data.pdf_b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'cover_letter.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (err) {
+      setCoverLetterError(err.message);
+    } finally {
+      setCoverLetterDownloading(false);
+    }
+  }
+
   async function fetchSavedResumes() {
     setSavedLoading(true);
     setSavedError(null);
@@ -422,6 +491,29 @@ function App() {
             />
           </section>
         )}
+
+        {result && (
+          <section className="ap-card ap-card--enter">
+            <h2 className="ap-card-title">
+              <span className="ap-step-badge">CL</span>
+              Cover Letter
+            </h2>
+            <CoverLetter
+              resumeText={resumeText}
+              jdText={jdText}
+              coverLetter={coverLetter}
+              setCoverLetter={setCoverLetter}
+              loading={coverLetterLoading}
+              error={coverLetterError}
+              aiProvider={aiProvider}
+              setAiProvider={setAiProvider}
+              onGenerate={handleGenerateCoverLetter}
+              onDownloadPdf={handleDownloadCoverLetterPdf}
+              downloading={coverLetterDownloading}
+            />
+          </section>
+        )}
+
 
       </main>
     </div>

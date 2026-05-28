@@ -152,6 +152,69 @@ _CALLERS = {
 }
 
 
+# ── Plain-text callers (for cover letter — no JSON mode) ─────────────────────
+
+def _call_openai_text(messages: list[dict], api_key: str, model: str) -> str:
+    data = _http_post(
+        _OPENAI_URL,
+        {"model": model, "messages": messages, "temperature": 0.7},
+        {"Authorization": f"Bearer {api_key}"},
+    )
+    return data["choices"][0]["message"]["content"]
+
+
+def _call_anthropic_text(messages: list[dict], api_key: str, model: str) -> str:
+    system_text = next((m["content"] for m in messages if m["role"] == "system"), "")
+    user_text   = next((m["content"] for m in messages if m["role"] == "user"),   "")
+    data = _http_post(
+        _ANTHROPIC_URL,
+        {
+            "model": model, "max_tokens": 2048, "temperature": 0.7,
+            "system": system_text,
+            "messages": [{"role": "user", "content": user_text}],
+        },
+        {"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+    )
+    return data["content"][0]["text"]
+
+
+def _call_gemini_text(messages: list[dict], api_key: str, model: str) -> str:
+    system_text = next((m["content"] for m in messages if m["role"] == "system"), "")
+    user_text   = next((m["content"] for m in messages if m["role"] == "user"),   "")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    data = _http_post(
+        url,
+        {
+            "systemInstruction": {"parts": [{"text": system_text}]},
+            "contents": [{"parts": [{"text": user_text}]}],
+            "generationConfig": {"temperature": 0.7},
+        },
+        {},
+    )
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError) as exc:
+        raise LLMFeedbackError("Unrecognized Gemini response format") from exc
+
+
+def _call_groq_text(messages: list[dict], api_key: str, model: str) -> str:
+    data = _http_post(
+        _GROQ_URL,
+        {"model": model, "messages": messages, "temperature": 0.7},
+        {"Authorization": f"Bearer {api_key}"},
+    )
+    return data["choices"][0]["message"]["content"]
+
+
+_TEXT_CALLERS = {
+    "openai":    _call_openai_text,
+    "anthropic": _call_anthropic_text,
+    "google":    _call_gemini_text,
+    "gemini":    _call_gemini_text,
+    "groq":      _call_groq_text,
+}
+
+
 def generate_resume_feedback(
     *,
     resume_text: str,
@@ -209,3 +272,62 @@ def generate_resume_feedback(
         })
 
     return normalized
+
+
+def generate_cover_letter(
+    *,
+    resume_text: str,
+    jd_text: str,
+    provider: str,
+    model: str,
+    api_key: str,
+) -> str:
+    if not provider:
+        raise LLMFeedbackError("No provider specified.")
+    if not api_key:
+        raise LLMFeedbackError(f"No API key for '{provider}'.")
+    if not model:
+        raise LLMFeedbackError(f"No model specified for '{provider}'.")
+
+    resolved = provider.lower().strip()
+    caller = _TEXT_CALLERS.get(resolved)
+    if not caller:
+        raise LLMFeedbackError(f"Unsupported provider '{resolved}'.")
+
+    system = (
+        "You are an expert career coach and professional cover letter writer. "
+        "Write compelling, personalized cover letters that land interviews. "
+        "Return ONLY the cover letter text — no meta-commentary, no preamble, no labels."
+    )
+    user_content = (
+        f"Write a professional cover letter for this job application.\n\n"
+        f"CANDIDATE RESUME:\n{resume_text}\n\n"
+        f"JOB DESCRIPTION:\n{jd_text}\n\n"
+        "Requirements:\n"
+        "- Use the candidate's actual name and background from the resume\n"
+        "- Reference the specific role and company from the JD where mentioned\n"
+        "- Highlight 2-3 most relevant experiences with concrete details and numbers\n"
+        "- Professional but human tone — avoid hollow buzzwords\n"
+        "- Structure: today's date, blank line, 'Dear Hiring Manager,' (or name if found in JD), "
+        "opening hook paragraph, 2 body paragraphs connecting experience to requirements, "
+        "closing paragraph with call to action, sign-off with candidate name\n"
+        "- 300-400 words total\n"
+        "- No placeholders, no [brackets] — write the actual letter\n\n"
+        "Return ONLY the cover letter text."
+    )
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user",   "content": user_content},
+    ]
+
+    try:
+        text = caller(messages, api_key, model)
+    except LLMFeedbackError:
+        raise
+    except Exception as exc:
+        raise LLMFeedbackError(str(exc)) from exc
+
+    if not text or not text.strip():
+        raise LLMFeedbackError("LLM returned an empty response.")
+
+    return text.strip()

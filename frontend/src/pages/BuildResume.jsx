@@ -17,6 +17,7 @@ import SectionOrder from '../components/builder/SectionOrder.jsx';
 import JobDescription from '../components/app/JobDescription.jsx';
 import ScoreResults from '../components/app/ScoreResults.jsx';
 import AIEnhancement from '../components/app/AIEnhancement.jsx';
+import CoverLetter from '../components/app/CoverLetter.jsx';
 
 import '../App.css';
 import './BuildResume.css';
@@ -75,6 +76,10 @@ export default function BuildResume() {
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState(null);
   const [downloading, setDownloading] = useState(false);
+  const [coverLetter, setCoverLetter] = useState(null);
+  const [coverLetterLoading, setCoverLetterLoading] = useState(false);
+  const [coverLetterError, setCoverLetterError] = useState(null);
+  const [coverLetterDownloading, setCoverLetterDownloading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('classic');
   const [aiProvider, setAiProvider] = useState(() => {
     const keys = getBYOK();
@@ -110,6 +115,7 @@ export default function BuildResume() {
     setFeedback(null);
     setAcceptedSubs(new Set());
     setError(null);
+    setCoverLetter(null);
   }
 
   // ── Direct PDF download (no AI) ────────────────────────────────
@@ -267,6 +273,57 @@ export default function BuildResume() {
   function handleLogout() {
     logout();
     navigate('/');
+  }
+
+  async function handleGenerateCoverLetter() {
+    if (!resumeText || !jdText) return;
+    const keys = getBYOK();
+    const providerCfg = aiProvider ? keys[aiProvider] : null;
+    if (!providerCfg?.key) {
+      setCoverLetterError('No API key configured — add one in your Profile under "API Keys".');
+      return;
+    }
+    setCoverLetterLoading(true);
+    setCoverLetterError(null);
+    try {
+      const res = await fetch('/api/cover-letter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resume_text: resumeText,
+          jd_text: jdText,
+          provider: aiProvider,
+          model: providerCfg.model,
+          api_key: providerCfg.key,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Cover letter generation failed');
+      setCoverLetter(data.cover_letter);
+    } catch (err) {
+      setCoverLetterError(err.message);
+    } finally {
+      setCoverLetterLoading(false);
+    }
+  }
+
+  async function handleDownloadCoverLetterPdf() {
+    if (!coverLetter) return;
+    setCoverLetterDownloading(true);
+    try {
+      const res = await fetch('/api/cover-letter-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cover_letter: coverLetter }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) throw new Error(data?.detail || 'PDF generation failed');
+      downloadBlob(data.pdf_b64, 'cover_letter.pdf');
+    } catch (err) {
+      setCoverLetterError(err.message);
+    } finally {
+      setCoverLetterDownloading(false);
+    }
   }
 
   const initials = user
@@ -466,6 +523,29 @@ export default function BuildResume() {
                 />
               </section>
             )}
+
+            {result && (
+              <section className="ap-card ap-card--enter">
+                <h2 className="ap-card-title">
+                  <span className="ap-step-badge">CL</span>
+                  Cover Letter
+                </h2>
+                <CoverLetter
+                  resumeText={resumeText}
+                  jdText={jdText}
+                  coverLetter={coverLetter}
+                  setCoverLetter={setCoverLetter}
+                  loading={coverLetterLoading}
+                  error={coverLetterError}
+                  aiProvider={aiProvider}
+                  setAiProvider={setAiProvider}
+                  onGenerate={handleGenerateCoverLetter}
+                  onDownloadPdf={handleDownloadCoverLetterPdf}
+                  downloading={coverLetterDownloading}
+                />
+              </section>
+            )}
+
           </>
         )}
 

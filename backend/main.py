@@ -14,6 +14,7 @@ from profile import router as profile_router
 from routers.resume import router as resume_router
 from routers.feedback import router as feedback_router
 from routers.pdf import router as pdf_router
+from routers.cover_letter import router as cover_letter_router
 
 load_dotenv()
 
@@ -43,3 +44,4 @@ app.include_router(profile_router, prefix="/api")
 app.include_router(resume_router, prefix="/api")
 app.include_router(feedback_router, prefix="/api")
 app.include_router(pdf_router, prefix="/api")
+app.include_router(cover_letter_router, prefix="/api")
