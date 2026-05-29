@@ -271,6 +271,55 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── BUILDER FEATURES ────────────────────────────────────────────── */}
+      <section className="hm-features hm-features--builder">
+        <div className="hm-section-wrap">
+          <header className="hm-section-hd reveal">
+            <span className="hm-overline">Resume Builder</span>
+            <h2 className="hm-section-title">
+              Build, import, and rewrite<br />your resume with AI.
+            </h2>
+            <p className="hm-section-sub">
+              A full 8-step form at <code className="hm-code">/build</code> — start from scratch,
+              upload an existing PDF to pre-fill, and rewrite any section with Gemini using a custom prompt.
+            </p>
+          </header>
+
+          <div className="hm-feature-grid">
+            <div className="hm-fcard reveal" style={{ transitionDelay: '0s' }}>
+              <div className="hm-fcard-icon hm-icon-builder" aria-hidden="true" />
+              <h3 className="hm-fcard-title">8-Step Resume Form</h3>
+              <p className="hm-fcard-desc">
+                Guided form covering Personal, Summary, Experience, Education, Skills,
+                Projects, Certifications, and Section Order. Auto-saves every keystroke
+                to <code className="hm-code">localStorage</code> — refresh and your draft is still there.
+              </p>
+            </div>
+
+            <div className="hm-fcard reveal" style={{ transitionDelay: '0.06s' }}>
+              <div className="hm-fcard-icon hm-icon-import" aria-hidden="true" />
+              <h3 className="hm-fcard-title">Import from Existing PDF</h3>
+              <p className="hm-fcard-desc">
+                Upload your current resume PDF and an AI model (any BYOK provider) parses
+                it into every form field automatically. Then edit the pre-filled details,
+                add what's missing, and download a new polished PDF.
+              </p>
+            </div>
+
+            <div className="hm-fcard reveal" style={{ transitionDelay: '0.12s' }}>
+              <div className="hm-fcard-icon hm-icon-rewrite" aria-hidden="true" />
+              <h3 className="hm-fcard-title">Rewrite with Gemini</h3>
+              <p className="hm-fcard-desc">
+                At every major step — Summary, Experience, Skills, Projects, and full resume
+                on the Finalize screen — a <em>Rewrite with Gemini</em> button lets you type
+                a custom instruction. Gemini rewrites that section in place using your existing
+                details as context. One click to apply, fully editable after.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── ROADMAP ─────────────────────────────────────────────────────── */}
       <section className="hm-roadmap">
         <div className="hm-section-wrap">

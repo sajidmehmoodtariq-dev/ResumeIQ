@@ -14,6 +14,7 @@ import StepSkills from '../components/builder/StepSkills.jsx';
 import StepProjects from '../components/builder/StepProjects.jsx';
 import StepCertifications from '../components/builder/StepCertifications.jsx';
 import SectionOrder from '../components/builder/SectionOrder.jsx';
+import RewritePanel from '../components/builder/RewritePanel.jsx';
 import JobDescription from '../components/app/JobDescription.jsx';
 import ScoreResults from '../components/app/ScoreResults.jsx';
 import AIEnhancement from '../components/app/AIEnhancement.jsx';
@@ -80,6 +81,12 @@ export default function BuildResume() {
   const [coverLetterLoading, setCoverLetterLoading] = useState(false);
   const [coverLetterError, setCoverLetterError] = useState(null);
   const [coverLetterDownloading, setCoverLetterDownloading] = useState(false);
+
+  // ── PDF import state ───────────────────────────────────────────
+  const [showImport, setShowImport] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState('classic');
   const [aiProvider, setAiProvider] = useState(() => {
     const keys = getBYOK();
@@ -270,6 +277,84 @@ export default function BuildResume() {
     }
   }
 
+  // ── Import existing resume PDF ─────────────────────────────────
+  async function handleParsePdf() {
+    if (!importFile) return;
+    const keys = getBYOK();
+    const providerCfg = aiProvider ? keys[aiProvider] : null;
+    if (!providerCfg?.key) {
+      setImportError('Select a provider and add its API key in Profile → API Keys first.');
+      return;
+    }
+    setImportLoading(true);
+    setImportError(null);
+    const form = new FormData();
+    form.append('file', importFile);
+    form.append('provider', aiProvider);
+    form.append('model', providerCfg.model);
+    form.append('api_key', providerCfg.key);
+    try {
+      const res = await fetch('/api/parse-resume', { method: 'POST', body: form });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) throw new Error(data?.detail || 'Parsing failed');
+      const base = emptyResume();
+      const merged = {
+        ...base,
+        personal: { ...base.personal, ...(data.personal || {}) },
+        summary: data.summary || '',
+        experience: (data.experience || []).map((e) => ({ id: newId(), ...e })),
+        education:  (data.education  || []).map((e) => ({ id: newId(), ...e })),
+        skills: Array.isArray(data.skills) ? data.skills : [],
+        projects: (data.projects || []).map((e) => ({ id: newId(), ...e })),
+        certifications: (data.certifications || []).map((e) => ({ id: newId(), ...e })),
+      };
+      setResumeJson(merged);
+      setCurrentStep(0);
+      setShowImport(false);
+      setImportFile(null);
+    } catch (err) {
+      setImportError(err.message);
+    } finally {
+      setImportLoading(false);
+    }
+  }
+
+  // ── Gemini rewrite ────────────────────────────────────────────
+  const geminiCfg = getBYOK()['google'] || getBYOK()['gemini'] || null;
+  const geminiKey = geminiCfg?.key || null;
+  const geminiModel = geminiCfg?.model || 'gemini-2.0-flash';
+
+  function handleRewrite(target, data) {
+    if (target === 'full') {
+      const base = emptyResume();
+      setResumeJson({
+        ...base,
+        personal:       { ...base.personal,       ...(data.personal       || {}) },
+        summary:        data.summary        ?? resumeJson.summary,
+        experience:     (data.experience    || resumeJson.experience).map((e) => ({ id: e.id || newId(), ...e })),
+        education:      (data.education     || resumeJson.education ).map((e) => ({ id: e.id || newId(), ...e })),
+        skills:         data.skills         ?? resumeJson.skills,
+        projects:       (data.projects      || resumeJson.projects  ).map((e) => ({ id: e.id || newId(), ...e })),
+        certifications: (data.certifications|| resumeJson.certifications).map((e) => ({ id: e.id || newId(), ...e })),
+        meta: resumeJson.meta,
+      });
+    } else if (target === 'summary' && data.summary !== undefined) {
+      updateSlice('summary', data.summary);
+    } else if (target === 'experience' && Array.isArray(data.experience)) {
+      const incoming = data.experience;
+      const existing = resumeJson.experience;
+      const merged = incoming.map((e, i) => ({ id: existing[i]?.id || newId(), ...e }));
+      updateSlice('experience', merged);
+    } else if (target === 'skills' && Array.isArray(data.skills)) {
+      updateSlice('skills', data.skills);
+    } else if (target === 'projects' && Array.isArray(data.projects)) {
+      const incoming = data.projects;
+      const existing = resumeJson.projects;
+      const merged = incoming.map((e, i) => ({ id: existing[i]?.id || newId(), ...e }));
+      updateSlice('projects', merged);
+    }
+  }
+
   function handleLogout() {
     logout();
     navigate('/');
@@ -363,6 +448,81 @@ export default function BuildResume() {
         {/* ── FORM PHASE ─────────────────────────────────────────── */}
         {!analysisMode && (
           <>
+            {/* PDF import panel */}
+            {!showImport ? (
+              <button type="button" className="br-import-trigger" onClick={() => setShowImport(true)}>
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                  <path d="M7.5 1v9M4 7l3.5 3.5L11 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M1.5 11.5v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                Import from existing resume PDF
+              </button>
+            ) : (
+              <div className="br-import-panel">
+                <div className="br-import-hd">
+                  <span className="br-import-hd-title">Import from existing resume PDF</span>
+                  <button type="button" className="br-import-close" onClick={() => { setShowImport(false); setImportFile(null); setImportError(null); }}>✕</button>
+                </div>
+                <p className="br-import-sub">
+                  Upload your current resume and an AI model will pre-fill the form. You can edit every field before downloading.
+                </p>
+
+                <label className={`br-file-drop ${importFile ? 'br-file-drop--has-file' : ''}`}>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    style={{ display: 'none' }}
+                    onChange={(e) => { setImportFile(e.target.files?.[0] || null); setImportError(null); }}
+                  />
+                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                    <rect x="3" y="2" width="16" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+                    <path d="M7 7h8M7 11h8M7 15h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                  <span>{importFile ? importFile.name : 'Click to choose PDF'}</span>
+                  {importFile && <span className="br-file-size">{(importFile.size / 1024).toFixed(0)} KB</span>}
+                </label>
+
+                <div className="br-import-provider-row">
+                  <span className="br-import-provider-label">AI provider</span>
+                  <div className="br-import-chips">
+                    {PROVIDER_DEFS.map((p) => {
+                      const hasKey = !!getBYOK()[p.id]?.key;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className={`br-import-chip${aiProvider === p.id ? ' br-import-chip--active' : ''}${!hasKey ? ' br-import-chip--nokey' : ''}`}
+                          onClick={() => setAiProvider(p.id)}
+                          title={!hasKey ? 'No API key configured — add one in Profile' : ''}
+                        >
+                          {p.label}
+                          {!hasKey && <span className="br-chip-nokey">no key</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {importError && <p className="br-import-error">{importError}</p>}
+
+                <div className="br-import-actions">
+                  <button type="button" className="br-btn br-btn--ghost" onClick={() => { setShowImport(false); setImportFile(null); setImportError(null); }}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="br-btn br-btn--primary"
+                    disabled={!importFile || importLoading || !aiProvider}
+                    onClick={handleParsePdf}
+                  >
+                    {importLoading ? (
+                      <><span className="br-spinner" />Parsing…</>
+                    ) : 'Parse & Pre-fill →'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Step indicator */}
             <div className="br-steps-bar">
               {FORM_STEPS.map((s, idx) => (
@@ -394,6 +554,17 @@ export default function BuildResume() {
                   <span className="br-step-badge">0{currentStep + 1}</span>
                   {step.title}
                 </h2>
+                {[1, 2, 4, 5, 7].includes(currentStep) && (
+                  <RewritePanel
+                    target={['summary', 'experience', 'skills', 'projects', 'full'][
+                      [1, 2, 4, 5, 7].indexOf(currentStep)
+                    ]}
+                    resumeJson={resumeJson}
+                    onApply={handleRewrite}
+                    geminiKey={geminiKey}
+                    geminiModel={geminiModel}
+                  />
+                )}
               </div>
 
               {currentStep === 0 && (

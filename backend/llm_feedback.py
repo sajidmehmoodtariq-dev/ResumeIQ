@@ -274,6 +274,145 @@ def generate_resume_feedback(
     return normalized
 
 
+_REWRITE_SCHEMAS = {
+    "summary": '{"summary": "rewritten professional summary text"}',
+    "experience": (
+        '{"experience": [{"role": "job title", "company": "company", "location": "city", '
+        '"startDate": "Mon YYYY", "endDate": "Mon YYYY or Present", "bullets": ["bullet"]}]}'
+    ),
+    "skills": '{"skills": ["skill1", "skill2"]}',
+    "projects": (
+        '{"projects": [{"name": "project name", "dates": "date range or empty", '
+        '"url": "url or empty", "bullets": ["description"]}]}'
+    ),
+    "full": (
+        '{"personal": {"name":"","email":"","phone":"","location":"","linkedin":"","website":""},'
+        '"summary": "","experience": [],"education": [],"skills": [],"projects": [],"certifications": []}'
+    ),
+}
+
+
+def rewrite_with_gemini(
+    *,
+    target: str,
+    current_data: str,
+    full_context: str,
+    instruction: str,
+    api_key: str,
+    model: str,
+) -> dict:
+    if not api_key:
+        raise LLMFeedbackError("No Gemini API key provided. Add it in Profile → API Keys.")
+    if target not in _REWRITE_SCHEMAS:
+        raise LLMFeedbackError(f"Unknown rewrite target '{target}'.")
+
+    system = (
+        "You are an expert resume writer. Rewrite resume content per the user's instruction. "
+        "Return ONLY valid JSON matching the exact schema — no markdown, no explanation."
+    )
+
+    section_label = target if target != "full" else "entire resume"
+    user_content = (
+        f"Rewrite the {section_label} section of this resume.\n\n"
+        f"USER INSTRUCTION:\n{instruction}\n\n"
+        f"FULL RESUME CONTEXT (for reference):\n{full_context}\n\n"
+        f"CURRENT {section_label.upper()} DATA:\n{current_data}\n\n"
+        f"Return ONLY a JSON object with this exact shape:\n{_REWRITE_SCHEMAS[target]}\n\n"
+        "Rules:\n"
+        "- Follow the user's instruction closely\n"
+        "- Keep all factual info (employers, schools, dates) unless the instruction says to change them\n"
+        "- Use empty string \"\" for missing fields, never null\n"
+        "- Return ONLY the JSON object"
+    )
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user",   "content": user_content},
+    ]
+
+    try:
+        result = _call_gemini(messages, api_key, model)
+    except LLMFeedbackError:
+        raise
+    except Exception as exc:
+        raise LLMFeedbackError(str(exc)) from exc
+
+    if not isinstance(result, dict):
+        raise LLMFeedbackError("Gemini returned invalid JSON structure.")
+
+    return result
+
+
+def parse_resume_to_json(
+    *,
+    resume_text: str,
+    provider: str,
+    model: str,
+    api_key: str,
+) -> dict:
+    if not provider:
+        raise LLMFeedbackError("No provider specified.")
+    if not api_key:
+        raise LLMFeedbackError(f"No API key for '{provider}'.")
+    if not model:
+        raise LLMFeedbackError(f"No model specified for '{provider}'.")
+
+    resolved = provider.lower().strip()
+    caller = _CALLERS.get(resolved)
+    if not caller:
+        raise LLMFeedbackError(f"Unsupported provider '{resolved}'.")
+
+    system = (
+        "You are a resume parser. Extract all information from the resume text and return ONLY valid JSON "
+        "matching the exact schema provided. No markdown fences, no explanation, no preamble."
+    )
+    user_content = (
+        "Parse this resume into the exact JSON schema below. Extract every detail accurately.\n\n"
+        f"RESUME TEXT:\n{resume_text}\n\n"
+        "OUTPUT SCHEMA — fill with extracted data, use empty string \"\" for missing fields, "
+        "empty array [] for missing sections:\n"
+        "{\n"
+        '  "personal": {"name": "", "email": "", "phone": "", "location": "", "linkedin": "", "website": ""},\n'
+        '  "summary": "professional summary text",\n'
+        '  "experience": [\n'
+        '    {"role": "job title", "company": "company", "location": "city, state",\n'
+        '     "startDate": "Mon YYYY", "endDate": "Mon YYYY or Present", "bullets": ["bullet 1"]}\n'
+        '  ],\n'
+        '  "education": [\n'
+        '    {"institution": "school", "degree": "degree and field",\n'
+        '     "graduationDate": "Mon YYYY or YYYY", "gpa": "", "honors": ""}\n'
+        '  ],\n'
+        '  "skills": ["skill1", "skill2"],\n'
+        '  "projects": [\n'
+        '    {"name": "project name", "dates": "", "url": "", "bullets": ["description"]}\n'
+        '  ],\n'
+        '  "certifications": [\n'
+        '    {"name": "cert name", "issuer": "issuer", "date": ""}\n'
+        '  ]\n'
+        "}\n\n"
+        "Rules:\n"
+        "- Extract ALL entries (every job, school, project, cert)\n"
+        "- Keep bullet points exactly as written in the resume\n"
+        "- Never use null — use \"\" for missing string fields\n"
+        "- Return ONLY the JSON object"
+    )
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user",   "content": user_content},
+    ]
+
+    try:
+        result = caller(messages, api_key, model)
+    except LLMFeedbackError:
+        raise
+    except Exception as exc:
+        raise LLMFeedbackError(str(exc)) from exc
+
+    if not isinstance(result, dict):
+        raise LLMFeedbackError("LLM returned invalid JSON structure.")
+
+    return result
+
+
 def generate_cover_letter(
     *,
     resume_text: str,
