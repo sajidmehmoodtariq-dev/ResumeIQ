@@ -54,7 +54,15 @@ export default function BuildResume() {
   const { user, logout } = useAuth();
 
   // ── Form state ─────────────────────────────────────────────────
-  const [resumeJson, setResumeJson] = useState(() => loadDraft() || emptyResume());
+  const [resumeJson, setResumeJson] = useState(() => {
+    const draft = loadDraft();
+    if (!draft) return emptyResume();
+    // Migrate flat skills string[] → categorized [{category, items}]
+    if (draft.skills && draft.skills.length > 0 && typeof draft.skills[0] === 'string') {
+      draft.skills = [{ category: 'Skills', items: draft.skills }];
+    }
+    return draft;
+  });
   const [currentStep, setCurrentStep] = useState(0);
   const [savedFlash, setSavedFlash] = useState(false);
 
@@ -106,7 +114,52 @@ export default function BuildResume() {
   }
 
   // ── Form navigation ────────────────────────────────────────────
+  function skillsTotal() {
+    return (resumeJson.skills || []).reduce((s, g) => {
+      if (typeof g === 'object') return s + (g.items?.length || 0);
+      return s + 1;
+    }, 0);
+  }
+
+  function summarySentences() {
+    const s = (resumeJson.summary || '').trim();
+    return s ? (s.match(/[.!?]+(\s|$)/g) || []).length : 0;
+  }
+
+  function canProceed() {
+    if (currentStep === 1) { // Summary
+      const n = summarySentences();
+      return n === 0 || (n >= 2 && n <= 3);
+    }
+    if (currentStep === 4) { // Skills
+      const n = skillsTotal();
+      return n >= 10 && n <= 15;
+    }
+    if (currentStep === 5) { // Projects
+      return (resumeJson.projects || []).length <= 4;
+    }
+    return true;
+  }
+
+  function blockMessage() {
+    if (currentStep === 1) {
+      const n = summarySentences();
+      if (n === 1) return 'Summary is too short — write at least 2 sentences.';
+      if (n > 3)   return `Trim your summary to 3 sentences (currently ${n}).`;
+    }
+    if (currentStep === 4) {
+      const n = skillsTotal();
+      if (n < 10) return `Add ${10 - n} more skill${10 - n !== 1 ? 's' : ''} to reach the minimum of 10.`;
+      if (n > 15) return `Remove ${n - 15} skill${n - 15 !== 1 ? 's' : ''} — maximum is 15.`;
+    }
+    if (currentStep === 5 && (resumeJson.projects || []).length > 4) {
+      return `Remove ${resumeJson.projects.length - 4} project${resumeJson.projects.length - 4 !== 1 ? 's' : ''} — maximum is 4.`;
+    }
+    return null;
+  }
+
   function handleNext() {
+    if (!canProceed()) return;
     if (currentStep < FORM_STEPS.length - 1) setCurrentStep((s) => s + 1);
   }
 
@@ -304,7 +357,11 @@ export default function BuildResume() {
         summary: data.summary || '',
         experience: (data.experience || []).map((e) => ({ id: newId(), ...e })),
         education:  (data.education  || []).map((e) => ({ id: newId(), ...e })),
-        skills: Array.isArray(data.skills) ? data.skills : [],
+        skills: Array.isArray(data.skills)
+          ? (data.skills.length > 0 && typeof data.skills[0] === 'object'
+              ? data.skills
+              : [{ category: 'Skills', items: data.skills }])
+          : [],
         projects: (data.projects || []).map((e) => ({ id: newId(), ...e })),
         certifications: (data.certifications || []).map((e) => ({ id: newId(), ...e })),
       };
@@ -580,7 +637,12 @@ export default function BuildResume() {
                 <StepEducation data={resumeJson.education} onChange={(v) => updateSlice('education', v)} />
               )}
               {currentStep === 4 && (
-                <StepSkills data={resumeJson.skills} onChange={(v) => updateSlice('skills', v)} />
+                <StepSkills
+                  data={resumeJson.skills}
+                  onChange={(v) => updateSlice('skills', v)}
+                  geminiKey={geminiKey}
+                  geminiModel={geminiModel}
+                />
               )}
               {currentStep === 5 && (
                 <StepProjects data={resumeJson.projects} onChange={(v) => updateSlice('projects', v)} />
@@ -604,16 +666,26 @@ export default function BuildResume() {
 
             {/* Nav buttons (hidden on finalize step — SectionOrder has its own) */}
             {currentStep < 7 && (
-              <div className="br-nav-btns">
-                {currentStep > 0 && (
-                  <button type="button" className="br-btn br-btn--ghost" onClick={handleBack}>
-                    ← Back
-                  </button>
+              <>
+                {blockMessage() && (
+                  <div className="br-block-msg">{blockMessage()}</div>
                 )}
-                <button type="button" className="br-btn br-btn--primary" onClick={handleNext}>
-                  {currentStep === 6 ? 'Finalize →' : 'Next →'}
-                </button>
-              </div>
+                <div className="br-nav-btns">
+                  {currentStep > 0 && (
+                    <button type="button" className="br-btn br-btn--ghost" onClick={handleBack}>
+                      ← Back
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="br-btn br-btn--primary"
+                    onClick={handleNext}
+                    disabled={!canProceed()}
+                  >
+                    {currentStep === 6 ? 'Finalize →' : 'Next →'}
+                  </button>
+                </div>
+              </>
             )}
 
             {/* Clear draft */}

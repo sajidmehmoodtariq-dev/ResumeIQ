@@ -1,7 +1,7 @@
 import { newId } from '../../utils/resumeJson.js';
 
 function emptyEntry() {
-  return { id: newId(), name: '', url: '', dates: '', bullets: [''] };
+  return { id: newId(), name: '', url: '', dates: '', technologies: '', bullets: [''] };
 }
 
 export default function StepProjects({ data, onChange }) {
@@ -41,7 +41,7 @@ export default function StepProjects({ data, onChange }) {
   return (
     <div className="br-form">
       {data.length === 0 && (
-        <p className="br-empty-hint">Showcase side projects, open source contributions, or portfolio pieces. Optional but impressive.</p>
+        <p className="br-empty-hint">Showcase side projects, open source contributions, or portfolio pieces. 3–4 strong projects is ideal.</p>
       )}
 
       {data.map((proj, ei) => (
@@ -72,18 +72,34 @@ export default function StepProjects({ data, onChange }) {
             </div>
           </div>
 
-          <div className="br-field">
-            <label className="br-label">Dates</label>
-            <input
-              className="br-input"
-              value={proj.dates}
-              onChange={(e) => updateEntry(ei, 'dates', e.target.value)}
-              placeholder="Jan 2024 – Present"
-            />
+          <div className="br-field-row br-field-row--2">
+            <div className="br-field">
+              <label className="br-label">Dates</label>
+              <input
+                className="br-input"
+                value={proj.dates}
+                onChange={(e) => updateEntry(ei, 'dates', e.target.value)}
+                placeholder="Jan 2024 – Present"
+              />
+            </div>
+            <div className="br-field">
+              <label className="br-label">Technologies Used</label>
+              <input
+                className="br-input"
+                value={proj.technologies || ''}
+                onChange={(e) => updateEntry(ei, 'technologies', e.target.value)}
+                placeholder="React, FastAPI, PostgreSQL"
+              />
+            </div>
           </div>
 
           <div className="br-field">
-            <label className="br-label">Description &amp; Key Points</label>
+            <div className="br-label-row">
+              <label className="br-label">Description &amp; Key Points</label>
+              <span className={`br-bullet-meta ${proj.bullets.filter(b=>b.trim()).length >= 2 && proj.bullets.filter(b=>b.trim()).length <= 3 ? 'br-bullet-meta--ok' : 'br-bullet-meta--warn'}`}>
+                {proj.bullets.filter(b=>b.trim()).length} bullets · aim 2–3
+              </span>
+            </div>
             {proj.bullets.map((bullet, bi) => (
               <div key={bi} className="br-bullet-row">
                 <span className="br-bullet-dot">•</span>

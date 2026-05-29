@@ -51,6 +51,16 @@ _SECTION_MAP: dict[str, list[str]] = {
         "open source",
         "projects",
     ],
+    "certifications": [
+        "certifications & licenses",
+        "licenses & certifications",
+        "certifications and licenses",
+        "licenses and certifications",
+        "professional certifications",
+        "certifications",
+        "certificates",
+        "licenses",
+    ],
 }
 
 # Flat phrase → canonical key lookup

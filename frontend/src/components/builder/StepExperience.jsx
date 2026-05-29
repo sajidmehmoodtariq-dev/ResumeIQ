@@ -103,7 +103,12 @@ export default function StepExperience({ data, onChange }) {
           </div>
 
           <div className="br-field">
-            <label className="br-label">Key Achievements &amp; Responsibilities</label>
+            <div className="br-label-row">
+              <label className="br-label">Key Achievements &amp; Responsibilities</label>
+              <span className={`br-bullet-meta ${exp.bullets.filter(b=>b.trim()).length >= 3 && exp.bullets.filter(b=>b.trim()).length <= 6 ? 'br-bullet-meta--ok' : 'br-bullet-meta--warn'}`}>
+                {exp.bullets.filter(b=>b.trim()).length} bullets · aim 3–6
+              </span>
+            </div>
             <p className="br-hint">Use action verbs. Quantify impact where possible (e.g. "reduced latency by 40%").</p>
             {exp.bullets.map((bullet, bi) => (
               <div key={bi} className="br-bullet-row">

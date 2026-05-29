@@ -280,14 +280,26 @@ _REWRITE_SCHEMAS = {
         '{"experience": [{"role": "job title", "company": "company", "location": "city", '
         '"startDate": "Mon YYYY", "endDate": "Mon YYYY or Present", "bullets": ["bullet"]}]}'
     ),
-    "skills": '{"skills": ["skill1", "skill2"]}',
+    "skills": (
+        '{"skills": [{"category": "Languages", "items": ["skill1", "skill2"]}, '
+        '{"category": "Frameworks & Libraries", "items": ["skill3"]}, '
+        '{"category": "Tools & Platforms", "items": ["skill4"]}, '
+        '{"category": "Soft Skills", "items": ["skill5"]}]}'
+    ),
     "projects": (
         '{"projects": [{"name": "project name", "dates": "date range or empty", '
-        '"url": "url or empty", "bullets": ["description"]}]}'
+        '"url": "url or empty", "technologies": "comma-separated tech stack", '
+        '"bullets": ["description"]}]}'
     ),
     "full": (
         '{"personal": {"name":"","email":"","phone":"","location":"","linkedin":"","website":""},'
-        '"summary": "","experience": [],"education": [],"skills": [],"projects": [],"certifications": []}'
+        '"summary": "",'
+        '"experience": [{"role":"","company":"","location":"","startDate":"","endDate":"","bullets":[]}],'
+        '"education": [{"institution":"","degree":"","graduationDate":"","gpa":"","honors":""}],'
+        '"skills": [{"category": "Languages", "items": []}, {"category": "Frameworks & Libraries", "items": []}, '
+        '{"category": "Tools & Platforms", "items": []}, {"category": "Soft Skills", "items": []}],'
+        '"projects": [{"name":"","dates":"","url":"","technologies":"","bullets":[]}],'
+        '"certifications": [{"name":"","issuer":"","date":""}]}'
     ),
 }
 
@@ -381,9 +393,14 @@ def parse_resume_to_json(
         '    {"institution": "school", "degree": "degree and field",\n'
         '     "graduationDate": "Mon YYYY or YYYY", "gpa": "", "honors": ""}\n'
         '  ],\n'
-        '  "skills": ["skill1", "skill2"],\n'
+        '  "skills": [\n'
+        '    {"category": "Languages", "items": ["skill1", "skill2"]},\n'
+        '    {"category": "Frameworks & Libraries", "items": ["skill3"]},\n'
+        '    {"category": "Tools & Platforms", "items": ["skill4"]},\n'
+        '    {"category": "Soft Skills", "items": ["soft skill"]}\n'
+        '  ],\n'
         '  "projects": [\n'
-        '    {"name": "project name", "dates": "", "url": "", "bullets": ["description"]}\n'
+        '    {"name": "project name", "dates": "", "url": "", "technologies": "comma-separated tech stack", "bullets": ["description"]}\n'
         '  ],\n'
         '  "certifications": [\n'
         '    {"name": "cert name", "issuer": "issuer", "date": ""}\n'

@@ -18,7 +18,7 @@ export function newId() {
 }
 
 export function saveDraft(json) {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(json)); } catch {}
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(json)); } catch {console.log("error")}
 }
 
 export function loadDraft() {
@@ -53,8 +53,21 @@ export function jsonToText(resume) {
 
     if (sid === 'skills') {
       lines.push('SKILLS');
-      lines.push(data.join(', '));
-      lines.push('');
+      if (data.length > 0 && typeof data[0] === 'object') {
+        for (const grp of data) {
+          if (!grp.items || grp.items.length === 0) continue;
+          if (grp.category) lines.push(grp.category);
+          for (const skill of grp.items) {
+            if (skill.trim()) lines.push(`• ${skill.trim()}`);
+          }
+          lines.push(''); // blank line so next category name parses as subheading
+        }
+      } else {
+        for (const skill of data) {
+          if (typeof skill === 'string' && skill.trim()) lines.push(`• ${skill.trim()}`);
+        }
+        lines.push('');
+      }
     } else if (sid === 'experience') {
       lines.push('EXPERIENCE');
       for (const exp of data) {
@@ -88,6 +101,7 @@ export function jsonToText(resume) {
         if (proj.name) lines.push(proj.name);
         const meta = [proj.dates, proj.url].filter(Boolean).join(' | ');
         if (meta) lines.push(meta);
+        if (proj.technologies?.trim()) lines.push(`Technologies: ${proj.technologies.trim()}`);
         for (const b of proj.bullets ?? []) {
           if (b.trim()) lines.push(`• ${b.trim()}`);
         }

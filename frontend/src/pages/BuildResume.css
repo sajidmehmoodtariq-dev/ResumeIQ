@@ -431,6 +431,180 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   LABEL ROW (label + inline meta)
+════════════════════════════════════════════════════════════════ */
+.br-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.br-bullet-meta {
+  font-size: 0.72rem;
+  font-family: 'DM Mono', monospace;
+  color: var(--muted);
+  border-radius: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.br-bullet-meta--ok   { color: var(--accent); border-color: rgba(184,255,61,0.25); background: rgba(184,255,61,0.07); }
+.br-bullet-meta--warn { color: var(--orange);  border-color: rgba(255,140,66,0.25); background: rgba(255,140,66,0.07); }
+
+/* ═══════════════════════════════════════════════════════════════
+   SKILLS — CATEGORIZED
+════════════════════════════════════════════════════════════════ */
+.sk-group {
+  background: var(--surface-hi);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.9rem 1rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.sk-group-hd {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.sk-group-name {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 2px 4px;
+  outline: none;
+  flex: 1;
+  letter-spacing: 0.02em;
+  transition: border-color 0.18s;
+}
+.sk-group-name:focus { border-color: var(--indigo); }
+.sk-group-name::placeholder { color: rgba(255,255,255,0.2); }
+
+.sk-group-count {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: rgba(255,255,255,0.06);
+  border-radius: 100px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+.sk-soft-badge {
+  font-size: 0.68rem;
+  font-family: 'DM Mono', monospace;
+  color: var(--orange);
+  background: rgba(255,140,66,0.1);
+  border: 1px solid rgba(255,140,66,0.25);
+  border-radius: 4px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.sk-remove-group {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+.sk-remove-group:hover { color: var(--danger); background: rgba(248,113,113,0.08); }
+
+.sk-new-cat {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sk-new-cat-input { flex: 1; min-width: 160px; }
+
+.sk-new-cat-btns {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.sk-top-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.sk-gauge {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: var(--surface-hi);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.9rem;
+  flex: 1;
+}
+
+.sk-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid rgba(100,97,245,0.35);
+  border-radius: 100px;
+  color: rgba(100,97,245,0.85);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.78rem;
+  padding: 6px 13px;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.sk-ai-btn:hover:not(:disabled) {
+  border-color: var(--indigo);
+  color: var(--indigo);
+  background: rgba(100,97,245,0.08);
+}
+.sk-ai-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.sk-ai-error {
+  font-size: 0.8rem;
+  color: var(--danger);
+  background: rgba(248,113,113,0.07);
+  border: 1px solid rgba(248,113,113,0.2);
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  margin: 0;
+}
+
+/* ── Block message (shown when Next is disabled) ── */
+.br-block-msg {
+  background: rgba(255,140,66,0.08);
+  border: 1px solid rgba(255,140,66,0.25);
+  border-radius: 10px;
+  color: var(--orange);
+  font-size: 0.83rem;
+  padding: 0.65rem 1rem;
+  text-align: center;
+}
+
+/* Spinner variant for light bg buttons */
+.br-spinner--dark {
+  border-color: rgba(100,97,245,0.2);
+  border-top-color: var(--indigo);
+}
+
+/* ═══════════════════════════════════════════════════════════════
    ENTRY CARDS (Experience / Education / Projects / Certs)
 ════════════════════════════════════════════════════════════════ */
 .br-entry-card {

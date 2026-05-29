@@ -145,7 +145,17 @@ function buildContext(resume) {
       for (const b of e.bullets || []) lines.push(`• ${b}`);
     }
   }
-  if (resume.skills?.length) { lines.push(''); lines.push('SKILLS'); lines.push(resume.skills.join(', ')); }
+  if (resume.skills?.length) {
+    lines.push(''); lines.push('SKILLS');
+    if (typeof resume.skills[0] === 'object') {
+      for (const grp of resume.skills) {
+        if (grp.category) lines.push(grp.category);
+        for (const s of grp.items || []) lines.push(`• ${s}`);
+      }
+    } else {
+      lines.push(resume.skills.join(', '));
+    }
+  }
   if (resume.projects?.length) {
     lines.push(''); lines.push('PROJECTS');
     for (const pr of resume.projects) {
